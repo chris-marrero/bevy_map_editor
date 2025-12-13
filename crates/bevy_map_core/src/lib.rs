@@ -1,0 +1,23 @@
+//! Core data structures for bevy_map_editor
+//!
+//! This crate provides the fundamental types for representing tile-based maps:
+//! - `Level` - A complete map with layers and entities
+//! - `Layer` - A single layer (tiles or objects)
+//! - `Tileset` - Tile atlas configuration with multi-image support
+//! - `EntityInstance` - Placed entities with properties
+//! - `Value` - Generic property value type
+//! - `MapProject` - Self-contained format bundling level and tilesets
+
+mod entity;
+mod layer;
+mod level;
+mod project;
+mod tileset;
+mod value;
+
+pub use entity::EntityInstance;
+pub use layer::{Layer, LayerData, LayerType};
+pub use level::Level;
+pub use project::{EditorProject, MapProject, MapProjectBuilder};
+pub use tileset::{TileProperties, Tileset, TilesetImage};
+pub use value::Value;

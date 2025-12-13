@@ -1,0 +1,142 @@
+{
+  "version": 1,
+  "schema": {
+    "version": 0,
+    "project": {
+      "name": "dialogue_demo",
+      "tile_size": 16,
+      "default_layer_types": []
+    },
+    "enums": {},
+    "data_types": {},
+    "embedded_types": {}
+  },
+  "tilesets": [],
+  "data": {
+    "instances": {}
+  },
+  "levels": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "name": "dialogue_demo",
+      "width": 1,
+      "height": 1,
+      "layers": [],
+      "entities": []
+    }
+  ],
+  "autotile_config": {
+    "terrain_sets": [],
+    "terrains": []
+  },
+  "sprite_sheets": [],
+  "dialogues": [
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "name": "merchant_greeting",
+      "start_node": "start",
+      "nodes": {
+        "end": {
+          "id": "end",
+          "node_type": "end",
+          "speaker": "",
+          "text": "",
+          "choices": [],
+          "next_node": null,
+          "condition": null,
+          "action": null,
+          "position": [
+            769.0,
+            147.0
+          ]
+        },
+        "sell": {
+          "id": "sell",
+          "node_type": "text",
+          "speaker": "Merchant",
+          "text": "I'm always looking for interesting items. Show me what you've got!",
+          "choices": [],
+          "next_node": "bye",
+          "condition": null,
+          "action": null,
+          "position": [
+            294.0,
+            160.0
+          ]
+        },
+        "buy": {
+          "id": "buy",
+          "node_type": "text",
+          "speaker": "Merchant",
+          "text": "Excellent! I have swords, potions, and rare artifacts. Take a look!",
+          "choices": [],
+          "next_node": "bye",
+          "condition": null,
+          "action": null,
+          "position": [
+            298.0,
+            20.0
+          ]
+        },
+        "browse": {
+          "id": "browse",
+          "node_type": "text",
+          "speaker": "Merchant",
+          "text": "No problem! Feel free to look around.",
+          "choices": [],
+          "next_node": "bye",
+          "condition": null,
+          "action": null,
+          "position": [
+            298.0,
+            300.0
+          ]
+        },
+        "start": {
+          "id": "start",
+          "node_type": "choice",
+          "speaker": "Merchant",
+          "text": "Welcome, traveler! What brings you to my shop?",
+          "choices": [
+            {
+              "text": "I'd like to buy something",
+              "next_node": "buy",
+              "condition": null
+            },
+            {
+              "text": "I want to sell items",
+              "next_node": "sell",
+              "condition": null
+            },
+            {
+              "text": "Just browsing",
+              "next_node": "browse",
+              "condition": null
+            }
+          ],
+          "next_node": null,
+          "condition": null,
+          "action": null,
+          "position": [
+            33.0,
+            102.0
+          ]
+        },
+        "bye": {
+          "id": "bye",
+          "node_type": "text",
+          "speaker": "Merchant",
+          "text": "Safe travels, friend! Come back anytime!",
+          "choices": [],
+          "next_node": "end",
+          "condition": null,
+          "action": null,
+          "position": [
+            546.0,
+            146.0
+          ]
+        }
+      }
+    }
+  ]
+}

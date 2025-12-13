@@ -1,0 +1,35 @@
+[package]
+name = "bevy_map_runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Runtime map rendering via bevy_ecs_tilemap for bevy_map_editor"
+keywords = ["bevy", "tilemap", "runtime", "rendering", "ecs"]
+categories = ["game-development", "rendering"]
+readme = "README.md"
+
+[dependencies]
+bevy_map_core = { workspace = true, features = ["bevy"] }
+bevy_map_autotile = { workspace = true }
+bevy_map_animation = { workspace = true }
+bevy_map_dialogue = { workspace = true }
+bevy = { workspace = true }
+bevy_ecs_tilemap = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+thiserror = "2.0"
+
+[features]
+default = []
+hot-reload = []
+
+[[example]]
+name = "load_map"
+path = "examples/load_map.rs"
+
+[[example]]
+name = "hot_reload"
+path = "examples/hot_reload.rs"

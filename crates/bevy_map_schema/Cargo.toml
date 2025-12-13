@@ -1,0 +1,20 @@
+[package]
+name = "bevy_map_schema"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Schema validation for bevy_map_editor entity types"
+keywords = ["bevy", "tilemap", "schema", "validation", "types"]
+categories = ["game-development", "data-structures"]
+readme = "README.md"
+
+[dependencies]
+bevy_map_core = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = "2.0"
+
+[features]
+default = []

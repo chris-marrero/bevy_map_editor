@@ -1,0 +1,123 @@
+{
+  "version": 1,
+  "schema": {
+    "version": 0,
+    "project": {
+      "name": "",
+      "tile_size": 0,
+      "default_layer_types": []
+    },
+    "enums": {},
+    "data_types": {},
+    "embedded_types": {}
+  },
+  "tilesets": [],
+  "data": {
+    "instances": {}
+  },
+  "levels": [
+    {
+      "id": "c792800a-0a8d-433c-9e0e-273323092866",
+      "name": "test_level",
+      "width": 50,
+      "height": 50,
+      "layers": [],
+      "entities": []
+    }
+  ],
+  "autotile_config": {
+    "terrain_sets": [],
+    "terrains": []
+  },
+  "sprite_sheets": [
+    {
+      "id": "a36d2f8d-41ef-4f7c-9ffa-958ca1131d3a",
+      "name": "frog",
+      "sheet_path": "sprites/Frog_01.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "columns": 10,
+      "rows": 4,
+      "pivot_x": 0.0,
+      "pivot_y": 0.0,
+      "animations": {
+        "hit": {
+          "frames": [
+            30,
+            31,
+            32,
+            33
+          ],
+          "frame_duration_ms": 200,
+          "loop_mode": "once"
+        },
+        "croak": {
+          "frames": [
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17
+          ],
+          "frame_duration_ms": 200,
+          "loop_mode": "loop"
+        },
+        "tongue": {
+          "frames": [
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29
+          ],
+          "frame_duration_ms": 200,
+          "loop_mode": "loop"
+        },
+        "walk": {
+          "frames": [
+            0,
+            1
+          ],
+          "frame_duration_ms": 200,
+          "loop_mode": "loop"
+        }
+      }
+    },
+    {
+      "id": "551c7610-89b6-413b-9591-d649c2ba4fcb",
+      "name": "goose",
+      "sheet_path": "sprites/Goose_01.png",
+      "frame_width": 32,
+      "frame_height": 32,
+      "columns": 12,
+      "rows": 16,
+      "pivot_x": 0.0,
+      "pivot_y": 0.0,
+      "animations": {
+        "sleep": {
+          "frames": [
+            72,
+            73,
+            74,
+            75,
+            76,
+            77,
+            78,
+            79
+          ],
+          "frame_duration_ms": 200,
+          "loop_mode": "loop"
+        }
+      }
+    }
+  ],
+  "dialogues": []
+}

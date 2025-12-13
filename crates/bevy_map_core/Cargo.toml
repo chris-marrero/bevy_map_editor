@@ -1,0 +1,23 @@
+[package]
+name = "bevy_map_core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Core data structures for bevy_map_editor - Level, Layer, Tileset, Entity"
+keywords = ["bevy", "tilemap", "editor", "level", "map"]
+categories = ["game-development", "data-structures"]
+readme = "README.md"
+
+[features]
+default = []
+bevy = ["dep:bevy", "bevy_map_animation/default"]
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+bevy = { workspace = true, optional = true }
+bevy_map_animation = { path = "../bevy_map_animation" }
+bevy_map_dialogue = { path = "../bevy_map_dialogue" }

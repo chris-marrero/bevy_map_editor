@@ -1,0 +1,411 @@
+{
+  "version": 1,
+  "schema": {
+    "version": 0,
+    "project": {
+      "name": "example_project",
+      "tile_size": 16,
+      "default_layer_types": []
+    },
+    "enums": {
+      "NpcType": [
+        "QuestGiver",
+        "LoreBased",
+        "Vendor"
+      ],
+      "ItemType": [
+        "HealthPotion",
+        "ManaPotion"
+      ],
+      "WeaponType": [
+        "Sword",
+        "Dagger",
+        "Bow"
+      ]
+    },
+    "data_types": {
+      "Item": {
+        "color": "#01ab93",
+        "icon": null,
+        "placeable": false,
+        "marker_size": null,
+        "properties": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "item_type",
+            "type": "enum",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": "ItemType",
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "min_level",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          }
+        ]
+      },
+      "NPC": {
+        "color": "#04d500",
+        "icon": null,
+        "placeable": true,
+        "marker_size": 16,
+        "properties": [
+          {
+            "name": "npc_type",
+            "type": "enum",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": "NpcType",
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "dialogue",
+            "type": "dialogue",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "items_for_sale",
+            "type": "array",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": "Item",
+            "embeddedType": null
+          }
+        ]
+      },
+      "Weapon": {
+        "color": "#00f1bf",
+        "icon": null,
+        "placeable": false,
+        "marker_size": null,
+        "properties": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "weapon_type",
+            "type": "enum",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": "WeaponType",
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "damage",
+            "type": "float",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "level_requirement",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          }
+        ]
+      },
+      "Enemy": {
+        "color": "#800000",
+        "icon": null,
+        "placeable": true,
+        "marker_size": 16,
+        "properties": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "level",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          },
+          {
+            "name": "exp",
+            "type": "float",
+            "required": false,
+            "default": null,
+            "min": null,
+            "max": null,
+            "showIf": null,
+            "enumType": null,
+            "refType": null,
+            "itemType": null,
+            "embeddedType": null
+          }
+        ]
+      }
+    },
+    "embedded_types": {}
+  },
+  "tilesets": [
+    {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Grass",
+      "tile_size": 16,
+      "images": [
+        {
+          "id": "00000000-0000-0000-0000-000000000011",
+          "name": "Main",
+          "path": "tiles/grass.png",
+          "columns": 16,
+          "rows": 10
+        }
+      ],
+      "columns": 16,
+      "rows": 10
+    }
+  ],
+  "data": {
+    "instances": {
+      "Item": [
+        {
+          "id": "1d32ddd6-aa77-4338-a693-c42f4e9093fb",
+          "type_name": "Item",
+          "properties": {
+            "min_level": 0.0,
+            "name": "Health Potion",
+            "item_type": "HealthPotion"
+          }
+        }
+      ]
+    }
+  },
+  "levels": [
+    {
+      "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+      "name": "example_level",
+      "width": 8,
+      "height": 8,
+      "layers": [
+        {
+          "name": "Ground",
+          "visible": true,
+          "data": {
+            "Tiles": {
+              "tileset_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+              "tiles": [
+                112,
+                113,
+                113,
+                113,
+                113,
+                113,
+                113,
+                114,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                96,
+                97,
+                97,
+                97,
+                97,
+                97,
+                97,
+                98,
+                80,
+                81,
+                81,
+                81,
+                81,
+                81,
+                81,
+                82
+              ]
+            }
+          }
+        },
+        {
+          "name": "Entities",
+          "visible": true,
+          "data": {
+            "Objects": {
+              "entities": [
+                "b6475bf7-2624-4612-8c1a-f889dc53846a",
+                "e95ff6cd-b336-46c0-aac5-9577a33cc7bc"
+              ]
+            }
+          }
+        }
+      ],
+      "entities": [
+        {
+          "id": "b6475bf7-2624-4612-8c1a-f889dc53846a",
+          "type_name": "NPC",
+          "position": [
+            32.0,
+            48.0
+          ],
+          "properties": {
+            "npc_type": "Vendor",
+            "dialogue": null,
+            "items_for_sale": [
+              "1d32ddd6-aa77-4338-a693-c42f4e9093fb"
+            ],
+            "name": "Test Vendor"
+          }
+        },
+        {
+          "id": "e95ff6cd-b336-46c0-aac5-9577a33cc7bc",
+          "type_name": "Enemy",
+          "position": [
+            80.0,
+            96.0
+          ],
+          "properties": {
+            "exp": 100.0,
+            "name": "Wolf1",
+            "level": 1.0
+          }
+        }
+      ]
+    }
+  ],
+  "autotile_config": {
+    "terrain_sets": [],
+    "terrains": []
+  },
+  "sprite_sheets": [],
+  "dialogues": []
+}

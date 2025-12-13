@@ -1,0 +1,73 @@
+//! Keyboard shortcut handling
+
+use bevy::prelude::*;
+
+use crate::ui::PendingAction;
+use crate::EditorState;
+
+/// Handle keyboard shortcuts
+pub fn handle_keyboard_shortcuts(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut editor_state: ResMut<EditorState>,
+) {
+    let ctrl = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+    let shift = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+
+    if ctrl {
+        // Ctrl+Z - Undo
+        if keyboard.just_pressed(KeyCode::KeyZ) && !shift {
+            editor_state.pending_action = Some(PendingAction::Undo);
+        }
+        // Ctrl+Shift+Z or Ctrl+Y - Redo
+        if (keyboard.just_pressed(KeyCode::KeyZ) && shift) || keyboard.just_pressed(KeyCode::KeyY) {
+            editor_state.pending_action = Some(PendingAction::Redo);
+        }
+        // Ctrl+C - Copy
+        if keyboard.just_pressed(KeyCode::KeyC) {
+            editor_state.pending_action = Some(PendingAction::Copy);
+        }
+        // Ctrl+X - Cut
+        if keyboard.just_pressed(KeyCode::KeyX) {
+            editor_state.pending_action = Some(PendingAction::Cut);
+        }
+        // Ctrl+V - Paste
+        if keyboard.just_pressed(KeyCode::KeyV) {
+            editor_state.pending_action = Some(PendingAction::Paste);
+        }
+        // Ctrl+A - Select All
+        if keyboard.just_pressed(KeyCode::KeyA) {
+            editor_state.pending_action = Some(PendingAction::SelectAll);
+        }
+        // Ctrl+S - Save
+        if keyboard.just_pressed(KeyCode::KeyS) {
+            editor_state.pending_action = Some(PendingAction::Save);
+        }
+        // Ctrl+O - Open
+        if keyboard.just_pressed(KeyCode::KeyO) {
+            editor_state.pending_action = Some(PendingAction::Open);
+        }
+        // Ctrl+N - New
+        if keyboard.just_pressed(KeyCode::KeyN) {
+            editor_state.pending_action = Some(PendingAction::New);
+        }
+    }
+
+    // Delete key
+    if keyboard.just_pressed(KeyCode::Delete) || keyboard.just_pressed(KeyCode::Backspace) {
+        if !editor_state.tile_selection.is_empty() {
+            editor_state.pending_delete_selection = true;
+        }
+    }
+
+    // Escape key - cancel move operation, paste mode, or clear selection (in priority order)
+    if keyboard.just_pressed(KeyCode::Escape) {
+        if editor_state.is_moving {
+            // Signal to cancel the move operation (handled in tools system which has Project access)
+            editor_state.pending_cancel_move = true;
+        } else if editor_state.is_pasting {
+            editor_state.is_pasting = false;
+        } else {
+            editor_state.tile_selection.clear();
+        }
+    }
+}

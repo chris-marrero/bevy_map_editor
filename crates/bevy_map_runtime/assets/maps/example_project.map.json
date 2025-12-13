@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "level": {
+    "id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+    "name": "example_level",
+    "width": 8,
+    "height": 8,
+    "layers": [
+      {
+        "name": "Ground",
+        "visible": true,
+        "data": {
+          "Tiles": {
+            "tileset_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+            "tiles": [
+              0, 0, 0, 0, 0, 0, 0, 0,
+              0, 24, 25, 25, 25, 25, 26, 0,
+              0, 40, 41, 41, 41, 41, 42, 0,
+              0, 40, 41, 41, 41, 41, 42, 0,
+              0, 40, 41, 41, 41, 41, 42, 0,
+              0, 40, 41, 41, 41, 41, 42, 0,
+              0, 56, 57, 57, 57, 57, 58, 0,
+              0, 0, 0, 0, 0, 0, 0, 0
+            ]
+          }
+        }
+      }
+    ],
+    "entities": [
+      {
+        "id": "12345678-1234-1234-1234-123456789abc",
+        "type_name": "NPC",
+        "position": [64.0, 64.0],
+        "properties": {
+          "name": "Test NPC",
+          "health": 100
+        }
+      }
+    ]
+  },
+  "tilesets": {
+    "a1b2c3d4-e5f6-7890-abcd-ef1234567890": {
+      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "name": "Grass",
+      "tile_size": 16,
+      "images": [
+        {
+          "id": "11111111-1111-1111-1111-111111111111",
+          "name": "Main",
+          "path": "tiles/grass.png",
+          "columns": 16,
+          "rows": 10
+        }
+      ],
+      "path": "tiles/grass.png",
+      "columns": 16,
+      "rows": 10
+    }
+  }
+}

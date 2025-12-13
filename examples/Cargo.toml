@@ -1,0 +1,61 @@
+[package]
+name = "bevy_map_editor_examples"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+# This is a virtual package, no library
+[lib]
+path = "lib.rs"
+
+[dependencies]
+bevy = { workspace = true }
+bevy_map_core = { workspace = true }
+bevy_map_autotile = { workspace = true }
+bevy_map_derive = { workspace = true }
+bevy_map_runtime = { workspace = true }
+bevy_map_animation = { workspace = true }
+bevy_map_dialogue = { workspace = true }
+bevy_map_editor = { workspace = true, features = ["runtime"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+uuid = { workspace = true }
+
+[[example]]
+name = "basic_editor"
+path = "basic_editor/main.rs"
+
+[[example]]
+name = "runtime_loader"
+path = "runtime_loader/main.rs"
+
+[[example]]
+name = "procedural_terrain"
+path = "procedural_terrain/main.rs"
+
+# Animation examples - auto vs manual loading
+[[example]]
+name = "animation_auto_demo"
+path = "animation/auto_demo.rs"
+
+[[example]]
+name = "animation_manual_demo"
+path = "animation/manual_demo.rs"
+
+# Dialogue examples - auto vs manual loading
+[[example]]
+name = "dialogue_auto_demo"
+path = "dialogue/auto_demo.rs"
+
+[[example]]
+name = "dialogue_manual_demo"
+path = "dialogue/manual_demo.rs"
+
+# Other examples
+[[example]]
+name = "custom_entities_demo"
+path = "custom_entities/demo.rs"
+
+[[example]]
+name = "tileset_demo"
+path = "tileset/demo.rs"
