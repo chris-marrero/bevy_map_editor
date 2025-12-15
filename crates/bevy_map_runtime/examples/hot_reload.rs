@@ -42,10 +42,7 @@ fn main() {
 
 fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // Spawn camera
-    commands.spawn((
-        Camera2d,
-        Transform::from_xyz(64.0, 64.0, 0.0),
-    ));
+    commands.spawn((Camera2d, Transform::from_xyz(64.0, 64.0, 0.0)));
 
     // Load map via asset system - supports hot-reload!
     // The map will automatically spawn once loaded

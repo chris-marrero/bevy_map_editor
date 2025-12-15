@@ -113,7 +113,9 @@ impl AnimationDef {
         };
 
         let frame_index = (loop_time / self.frame_duration_ms) as usize;
-        self.frames.get(frame_index.min(self.frames.len() - 1)).copied()
+        self.frames
+            .get(frame_index.min(self.frames.len() - 1))
+            .copied()
     }
 }
 
@@ -175,7 +177,12 @@ impl SpriteData {
     }
 
     /// Create a new named sprite data with the given sheet path and frame dimensions
-    pub fn new_named(name: impl Into<String>, sheet_path: impl Into<String>, frame_width: u32, frame_height: u32) -> Self {
+    pub fn new_named(
+        name: impl Into<String>,
+        sheet_path: impl Into<String>,
+        frame_width: u32,
+        frame_height: u32,
+    ) -> Self {
         Self {
             id: Uuid::new_v4(),
             name: name.into(),

@@ -177,7 +177,12 @@ mod tests {
     fn test_tile_operations() {
         let mut level = Level::new("Test".to_string(), 10, 10);
         let tileset_id = Uuid::new_v4();
-        level.add_layer(Layer::new_tile_layer("Ground".to_string(), tileset_id, 10, 10));
+        level.add_layer(Layer::new_tile_layer(
+            "Ground".to_string(),
+            tileset_id,
+            10,
+            10,
+        ));
 
         // Initially empty
         assert_eq!(level.get_tile(0, 5, 5), None);

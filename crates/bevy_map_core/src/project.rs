@@ -81,8 +81,16 @@ impl EditorProject {
     pub fn to_map_project(&self) -> Option<MapProject> {
         let level = self.first_level()?.clone();
         let tilesets = self.tilesets.iter().map(|t| (t.id, t.clone())).collect();
-        let sprite_sheets = self.sprite_sheets.iter().map(|s| (s.id, s.clone())).collect();
-        let dialogues = self.dialogues.iter().map(|d| (d.id.to_string(), d.clone())).collect();
+        let sprite_sheets = self
+            .sprite_sheets
+            .iter()
+            .map(|s| (s.id, s.clone()))
+            .collect();
+        let dialogues = self
+            .dialogues
+            .iter()
+            .map(|d| (d.id.to_string(), d.clone()))
+            .collect();
 
         Some(MapProject {
             version: self.version,
@@ -296,7 +304,12 @@ mod tests {
         let tileset = Tileset::new("Ground".to_string(), "tiles.png".to_string(), 32, 10, 10);
         let tileset_id = tileset.id;
 
-        level.add_layer(Layer::new_tile_layer("Ground".to_string(), tileset_id, 10, 10));
+        level.add_layer(Layer::new_tile_layer(
+            "Ground".to_string(),
+            tileset_id,
+            10,
+            10,
+        ));
 
         let project = MapProject::new(level, vec![tileset]);
 
@@ -335,10 +348,21 @@ mod tests {
     #[test]
     fn test_image_paths() {
         let mut level = Level::new("Test".to_string(), 10, 10);
-        let tileset = Tileset::new("Ground".to_string(), "tiles/ground.png".to_string(), 32, 10, 10);
+        let tileset = Tileset::new(
+            "Ground".to_string(),
+            "tiles/ground.png".to_string(),
+            32,
+            10,
+            10,
+        );
         let tileset_id = tileset.id;
 
-        level.add_layer(Layer::new_tile_layer("Ground".to_string(), tileset_id, 10, 10));
+        level.add_layer(Layer::new_tile_layer(
+            "Ground".to_string(),
+            tileset_id,
+            10,
+            10,
+        ));
 
         let project = MapProject::new(level, vec![tileset]);
         let paths = project.image_paths();

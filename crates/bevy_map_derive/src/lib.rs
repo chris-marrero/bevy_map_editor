@@ -86,7 +86,11 @@ fn impl_map_entity(input: &DeriveInput) -> syn::Result<TokenStream2> {
             let field_type = &field.ty;
 
             // Check for #[map_sprite] attribute
-            if let Some(attr) = field.attrs.iter().find(|attr| attr.path().is_ident("map_sprite")) {
+            if let Some(attr) = field
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("map_sprite"))
+            {
                 let prop_name = parse_map_sprite_attr(attr, field_name)?;
                 sprite_fields.push((field_name.clone(), prop_name));
                 // Sprite fields initialize to None
@@ -96,7 +100,10 @@ fn impl_map_entity(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
 
             // Check for #[map_prop] attribute
-            let map_prop_attr = field.attrs.iter().find(|attr| attr.path().is_ident("map_prop"));
+            let map_prop_attr = field
+                .attrs
+                .iter()
+                .find(|attr| attr.path().is_ident("map_prop"));
 
             if let Some(attr) = map_prop_attr {
                 let (prop_name, default_value) = parse_map_prop_attr(attr, field_name)?;
@@ -134,11 +141,14 @@ fn impl_map_entity(input: &DeriveInput) -> syn::Result<TokenStream2> {
             }
         }
     } else {
-        let match_arms: Vec<TokenStream2> = sprite_fields.iter().map(|(field_name, prop_name)| {
-            quote! {
-                #prop_name => { self.#field_name = Some(handle.clone()); }
-            }
-        }).collect();
+        let match_arms: Vec<TokenStream2> = sprite_fields
+            .iter()
+            .map(|(field_name, prop_name)| {
+                quote! {
+                    #prop_name => { self.#field_name = Some(handle.clone()); }
+                }
+            })
+            .collect();
         quote! {
             fn inject_sprite_handle(&mut self, property_name: &str, handle: bevy::prelude::Handle<bevy::prelude::Image>) {
                 match property_name {
@@ -243,10 +253,7 @@ fn parse_map_prop_attr(
 }
 
 /// Parse #[map_sprite] or #[map_sprite("property_name")] attribute
-fn parse_map_sprite_attr(
-    attr: &Attribute,
-    field_name: &Ident,
-) -> syn::Result<String> {
+fn parse_map_sprite_attr(attr: &Attribute, field_name: &Ident) -> syn::Result<String> {
     // Default to field name as property name
     let mut prop_name = field_name.to_string();
 

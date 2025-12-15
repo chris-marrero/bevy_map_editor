@@ -44,7 +44,11 @@ pub trait MapEntityType: Component + Sized + Send + Sync + 'static {
 
     /// Inject a sprite handle into the component for the given property name.
     /// Override this if your entity has sprite fields that need manual handle injection.
-    fn inject_sprite_handle(&mut self, _property_name: &str, _handle: bevy::prelude::Handle<bevy::prelude::Image>) {
+    fn inject_sprite_handle(
+        &mut self,
+        _property_name: &str,
+        _handle: bevy::prelude::Handle<bevy::prelude::Image>,
+    ) {
         // Default: no-op
     }
 }
@@ -301,10 +305,7 @@ mod tests {
 
         fn from_instance(instance: &EntityInstance) -> Self {
             Self {
-                name: instance
-                    .get_string("name")
-                    .unwrap_or("Unknown")
-                    .to_string(),
+                name: instance.get_string("name").unwrap_or("Unknown").to_string(),
                 health: instance.get_int("health").unwrap_or(100) as i32,
             }
         }

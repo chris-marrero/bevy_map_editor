@@ -15,6 +15,7 @@ bevy_map_core = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
+rand = { version = "0.8", features = ["small_rng"] }
 
 [features]
 default = []

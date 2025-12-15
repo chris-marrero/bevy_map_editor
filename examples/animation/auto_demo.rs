@@ -47,9 +47,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((
         AnimatedSpriteHandle::new(
             asset_server.load("maps/animation_demo.map.json"),
-            "frog",    // sprite sheet name in the editor
-            "walk",    // initial animation to play
-        ).with_scale(4.0),
+            "frog", // sprite sheet name in the editor
+            "walk", // initial animation to play
+        )
+        .with_scale(4.0),
         Transform::from_xyz(0.0, 0.0, 0.0),
     ));
 
@@ -70,10 +71,7 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     info!("Animation Auto Demo - using AnimatedSpriteHandle for minimal boilerplate!");
 }
 
-fn handle_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut AnimatedSprite>,
-) {
+fn handle_input(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query<&mut AnimatedSprite>) {
     let animation = if keyboard.just_pressed(KeyCode::Digit1) {
         Some("walk")
     } else if keyboard.just_pressed(KeyCode::Digit2) {
@@ -104,10 +102,13 @@ fn update_hud(
     query: Query<Option<&AnimatedSprite>>,
     mut hud_query: Query<&mut Text, With<AnimationHud>>,
 ) {
-    let Ok(mut text) = hud_query.single_mut() else { return };
+    let Ok(mut text) = hud_query.single_mut() else {
+        return;
+    };
 
     let status = match query.single() {
-        Ok(Some(a)) => format!("{} ({})",
+        Ok(Some(a)) => format!(
+            "{} ({})",
             a.current_animation.as_deref().unwrap_or("none"),
             if a.playing { "playing" } else { "stopped" }
         ),

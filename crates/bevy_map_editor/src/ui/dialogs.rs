@@ -3,8 +3,8 @@
 use bevy_egui::egui;
 
 use crate::project::Project;
-use crate::{AssetsBasePath, CopyFileCallback};
 use crate::EditorState;
+use crate::{AssetsBasePath, CopyFileCallback};
 
 /// Actions that can be triggered from menus
 #[derive(Debug, Clone, PartialEq)]
@@ -54,7 +54,8 @@ pub fn render_dialogs(
                                 *project = loaded;
                             }
                             Err(e) => {
-                                editor_state.error_message = Some(format!("Failed to load project: {}", e));
+                                editor_state.error_message =
+                                    Some(format!("Failed to load project: {}", e));
                             }
                         }
                     }
@@ -91,7 +92,11 @@ pub fn render_dialogs(
     }
 }
 
-fn render_new_level_dialog(ctx: &egui::Context, editor_state: &mut EditorState, project: &mut Project) {
+fn render_new_level_dialog(
+    ctx: &egui::Context,
+    editor_state: &mut EditorState,
+    project: &mut Project,
+) {
     if !editor_state.show_new_level_dialog {
         return;
     }
@@ -175,7 +180,9 @@ fn render_new_tileset_dialog(
 
             ui.horizontal(|ui| {
                 ui.label("Tile Size:");
-                ui.add(egui::DragValue::new(&mut editor_state.new_tileset_tile_size).range(1..=256));
+                ui.add(
+                    egui::DragValue::new(&mut editor_state.new_tileset_tile_size).range(1..=256),
+                );
             });
 
             ui.horizontal(|ui| {
@@ -198,8 +205,14 @@ fn render_new_tileset_dialog(
                     ui.colored_label(egui::Color32::RED, "File not found at this path");
                 }
                 PathStatus::OutsideAssets => {
-                    ui.colored_label(egui::Color32::YELLOW, "File is outside assets folder - will be copied");
-                    ui.small(format!("Assets folder: {}", assets_base_path.path().display()));
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        "File is outside assets folder - will be copied",
+                    );
+                    ui.small(format!(
+                        "Assets folder: {}",
+                        assets_base_path.path().display()
+                    ));
                 }
                 _ => {}
             }
@@ -213,7 +226,8 @@ fn render_new_tileset_dialog(
 
                 ui.add_enabled_ui(can_create, |ui| {
                     if ui.button("Create").clicked() {
-                        let absolute_path = std::path::PathBuf::from(&editor_state.new_tileset_path);
+                        let absolute_path =
+                            std::path::PathBuf::from(&editor_state.new_tileset_path);
 
                         // Check if file needs to be copied
                         if path_status == PathStatus::OutsideAssets {
@@ -306,7 +320,11 @@ fn render_copy_file_dialog(
             ui.separator();
             ui.label(format!("File: {}", filename));
             ui.label(format!("From: {}", source_path.display()));
-            ui.label(format!("To: {}/tiles/{}", assets_base_path.path().display(), filename));
+            ui.label(format!(
+                "To: {}/tiles/{}",
+                assets_base_path.path().display(),
+                filename
+            ));
             ui.separator();
             ui.label("Copy this file to the assets folder?");
             ui.separator();
@@ -322,13 +340,18 @@ fn render_copy_file_dialog(
                                     create_tileset_from_path(editor_state, project, relative_path);
                                 }
                                 CopyFileCallback::AddTilesetImage => {
-                                    add_tileset_image_from_path(editor_state, project, relative_path);
+                                    add_tileset_image_from_path(
+                                        editor_state,
+                                        project,
+                                        relative_path,
+                                    );
                                 }
                                 CopyFileCallback::None => {}
                             }
                         }
                         Err(e) => {
-                            editor_state.error_message = Some(format!("Failed to copy file: {}", e));
+                            editor_state.error_message =
+                                Some(format!("Failed to copy file: {}", e));
                         }
                     }
 
@@ -422,7 +445,8 @@ fn render_add_tileset_image_dialog(
         return;
     }
 
-    let tileset_name = editor_state.selected_tileset
+    let tileset_name = editor_state
+        .selected_tileset
         .and_then(|id| project.tilesets.iter().find(|t| t.id == id))
         .map(|t| t.name.clone())
         .unwrap_or_else(|| "Unknown".to_string());
@@ -452,8 +476,10 @@ fn render_add_tileset_image_dialog(
 
             ui.horizontal(|ui| {
                 ui.label("Image Path:");
-                ui.add(egui::TextEdit::singleline(&mut editor_state.add_image_path)
-                    .desired_width(200.0));
+                ui.add(
+                    egui::TextEdit::singleline(&mut editor_state.add_image_path)
+                        .desired_width(200.0),
+                );
                 #[cfg(feature = "native")]
                 if ui.button("Browse...").clicked() {
                     if let Some(path) = rfd::FileDialog::new()
@@ -471,7 +497,10 @@ fn render_add_tileset_image_dialog(
                     ui.colored_label(egui::Color32::RED, "File not found at this path");
                 }
                 PathStatus::OutsideAssets => {
-                    ui.colored_label(egui::Color32::YELLOW, "File is outside assets folder - will be copied");
+                    ui.colored_label(
+                        egui::Color32::YELLOW,
+                        "File is outside assets folder - will be copied",
+                    );
                 }
                 _ => {}
             }

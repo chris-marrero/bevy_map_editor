@@ -41,17 +41,18 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     // - Waits for MapProject to load
     // - Finds dialogue tree by name
     // - Adds DialogueHandle component automatically
-    commands.spawn(
-        DialogueTreeHandle::new(
-            asset_server.load("maps/dialogue_demo.map.json"),
-            "merchant_greeting",  // dialogue name in the editor
-        ),
-    );
+    commands.spawn(DialogueTreeHandle::new(
+        asset_server.load("maps/dialogue_demo.map.json"),
+        "merchant_greeting", // dialogue name in the editor
+    ));
 
     // Display
     commands.spawn((
         Text::new("Dialogue Auto Demo\n\nUsing DialogueTreeHandle\n\nLoading..."),
-        TextFont { font_size: 20.0, ..default() },
+        TextFont {
+            font_size: 20.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
@@ -73,8 +74,12 @@ fn handle_input(
     dialogue_assets: Res<Assets<DialogueTree>>,
 ) {
     // Get the dialogue tree from the auto-loaded handle
-    let Ok(handle) = dialogue_query.single() else { return };
-    let Some(tree) = dialogue_assets.get(&handle.0) else { return };
+    let Ok(handle) = dialogue_query.single() else {
+        return;
+    };
+    let Some(tree) = dialogue_assets.get(&handle.0) else {
+        return;
+    };
 
     // Space to start/advance dialogue
     if keyboard.just_pressed(KeyCode::Space) {
@@ -105,7 +110,10 @@ fn handle_input(
         if let Some(current_id) = &runner.current_node_id {
             if let Some(node) = tree.get_node(current_id) {
                 if node.node_type == DialogueNodeType::Choice {
-                    for (i, key) in [KeyCode::KeyA, KeyCode::KeyB, KeyCode::KeyC].iter().enumerate() {
+                    for (i, key) in [KeyCode::KeyA, KeyCode::KeyB, KeyCode::KeyC]
+                        .iter()
+                        .enumerate()
+                    {
                         if keyboard.just_pressed(*key) && node.choices.len() > i {
                             if let Some(next) = &node.choices[i].next_node {
                                 runner.current_node_id = Some(next.clone());
@@ -124,7 +132,9 @@ fn update_display(
     dialogue_assets: Res<Assets<DialogueTree>>,
     mut display_query: Query<&mut Text, With<DialogueDisplay>>,
 ) {
-    let Ok(mut text) = display_query.single_mut() else { return };
+    let Ok(mut text) = display_query.single_mut() else {
+        return;
+    };
 
     // Check if dialogue is loaded
     let tree = match dialogue_query.single() {

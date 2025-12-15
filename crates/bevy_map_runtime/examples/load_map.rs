@@ -28,10 +28,7 @@ fn setup(
     mut spawn_events: bevy::ecs::message::MessageWriter<SpawnMapProjectEvent>,
 ) {
     // Spawn camera
-    commands.spawn((
-        Camera2d,
-        Transform::from_xyz(64.0, 64.0, 0.0),
-    ));
+    commands.spawn((Camera2d, Transform::from_xyz(64.0, 64.0, 0.0)));
 
     // Load map project from embedded JSON
     let json = include_str!("../assets/maps/example_project.map.json");

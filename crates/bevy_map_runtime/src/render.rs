@@ -2,11 +2,11 @@
 //!
 //! This module provides helper functions for working with bevy_ecs_tilemap rendering.
 
+use crate::entity_registry::EntityProperties;
 use bevy::prelude::*;
 use bevy_ecs_tilemap::prelude::*;
 use bevy_map_animation::SpriteData;
 use bevy_map_core::Value;
-use crate::entity_registry::EntityProperties;
 
 /// Helper to create a TilemapTexture from an image handle
 pub fn tilemap_texture_from_image(image: Handle<Image>) -> TilemapTexture {
@@ -74,7 +74,9 @@ pub fn spawn_sprite_components(
 ) {
     for (entity, props) in query.iter() {
         // Collect all sprite properties
-        let sprite_properties: Vec<(String, SpriteData)> = props.properties.iter()
+        let sprite_properties: Vec<(String, SpriteData)> = props
+            .properties
+            .iter()
             .filter_map(|(name, value)| {
                 match value {
                     Value::Object(obj) => {
@@ -122,9 +124,7 @@ pub fn spawn_sprite_components(
 }
 
 /// System that completes sprite setup once assets are loaded
-pub fn complete_sprite_loads(
-    mut query: Query<(&SpriteSlot, &mut Sprite)>,
-) {
+pub fn complete_sprite_loads(mut query: Query<(&SpriteSlot, &mut Sprite)>) {
     for (slot, mut sprite) in query.iter_mut() {
         let sprite_data = &slot.sprite_data;
 

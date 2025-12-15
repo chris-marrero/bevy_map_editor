@@ -47,7 +47,11 @@ struct TileCursor;
 #[derive(Component)]
 struct InfoDisplay;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut cursor_state: ResMut<CursorState>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut cursor_state: ResMut<CursorState>,
+) {
     // Spawn camera
     commands.spawn((Camera2d, Transform::from_xyz(64.0, 64.0, 0.0)));
 
@@ -70,7 +74,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut cursor_stat
     // Spawn info display
     commands.spawn((
         Text::new("Tileset Demo\n\nLoading..."),
-        TextFont { font_size: 16.0, ..default() },
+        TextFont {
+            font_size: 16.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
@@ -93,8 +100,15 @@ fn handle_input(
     time: Res<Time>,
 ) {
     // Get project bounds from the loaded asset
-    let (max_x, max_y) = match cursor_state.map_handle.as_ref().and_then(|h| map_assets.get(h)) {
-        Some(p) => (p.level.width.saturating_sub(1), p.level.height.saturating_sub(1)),
+    let (max_x, max_y) = match cursor_state
+        .map_handle
+        .as_ref()
+        .and_then(|h| map_assets.get(h))
+    {
+        Some(p) => (
+            p.level.width.saturating_sub(1),
+            p.level.height.saturating_sub(1),
+        ),
         None => return,
     };
 
@@ -115,10 +129,18 @@ fn handle_input(
     // Pan camera
     if let Ok(mut transform) = camera_query.single_mut() {
         let speed = 100.0 * time.delta_secs();
-        if keyboard.pressed(KeyCode::KeyW) { transform.translation.y += speed; }
-        if keyboard.pressed(KeyCode::KeyS) { transform.translation.y -= speed; }
-        if keyboard.pressed(KeyCode::KeyA) { transform.translation.x -= speed; }
-        if keyboard.pressed(KeyCode::KeyD) { transform.translation.x += speed; }
+        if keyboard.pressed(KeyCode::KeyW) {
+            transform.translation.y += speed;
+        }
+        if keyboard.pressed(KeyCode::KeyS) {
+            transform.translation.y -= speed;
+        }
+        if keyboard.pressed(KeyCode::KeyA) {
+            transform.translation.x -= speed;
+        }
+        if keyboard.pressed(KeyCode::KeyD) {
+            transform.translation.x += speed;
+        }
     }
 }
 
@@ -126,7 +148,9 @@ fn update_cursor(
     cursor_state: Res<CursorState>,
     mut cursor_query: Query<&mut Transform, With<TileCursor>>,
 ) {
-    let Ok(mut transform) = cursor_query.single_mut() else { return };
+    let Ok(mut transform) = cursor_query.single_mut() else {
+        return;
+    };
     transform.translation.x = cursor_state.cursor_x as f32 * 16.0 + 8.0;
     transform.translation.y = cursor_state.cursor_y as f32 * 16.0 + 8.0;
 }
@@ -136,10 +160,16 @@ fn update_display(
     map_assets: Res<Assets<MapProject>>,
     mut display_query: Query<&mut Text, With<InfoDisplay>>,
 ) {
-    let Ok(mut text) = display_query.single_mut() else { return };
+    let Ok(mut text) = display_query.single_mut() else {
+        return;
+    };
 
     // Get the loaded MapProject asset
-    let Some(project) = cursor_state.map_handle.as_ref().and_then(|h| map_assets.get(h)) else {
+    let Some(project) = cursor_state
+        .map_handle
+        .as_ref()
+        .and_then(|h| map_assets.get(h))
+    else {
         *text = Text::new("Loading map...");
         return;
     };
@@ -155,14 +185,19 @@ fn update_display(
     // Show tile info at cursor
     for layer in &project.level.layers {
         if let LayerData::Tiles { tileset_id, tiles } = &layer.data {
-            let idx = (project.level.height - 1 - y) as usize * project.level.width as usize + x as usize;
+            let idx =
+                (project.level.height - 1 - y) as usize * project.level.width as usize + x as usize;
             if let Some(tile_idx) = tiles.get(idx).and_then(|t| *t) {
                 display.push_str(&format!("{}: tile {}\n", layer.name, tile_idx));
 
                 if let Some(tileset) = project.tilesets.get(tileset_id) {
                     if let Some(props) = tileset.tile_properties.get(&tile_idx) {
-                        if props.collision { display.push_str("  [COLLISION]\n"); }
-                        if props.one_way { display.push_str("  [ONE-WAY]\n"); }
+                        if props.collision {
+                            display.push_str("  [COLLISION]\n");
+                        }
+                        if props.one_way {
+                            display.push_str("  [ONE-WAY]\n");
+                        }
                         for (key, value) in &props.custom {
                             display.push_str(&format!("  {}: {}\n", key, value));
                         }

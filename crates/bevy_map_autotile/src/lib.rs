@@ -49,9 +49,8 @@ pub use terrain::{Color, Terrain, TerrainSet, TerrainSetType, TileConstraints, T
 pub use wang::{
     get_paint_target, paint_terrain, paint_terrain_at_target, paint_terrain_horizontal_edge,
     paint_terrain_vertical_edge, preview_terrain_at_target, update_tile_with_neighbors, CellInfo,
-    PaintTarget, WangFiller, WangId,
+    PaintTarget, TerrainId, WangFiller, WangId, WangPosition,
 };
-
 
 // Re-export legacy module contents for backward compatibility
 pub use legacy::{

@@ -1,7 +1,7 @@
 //! Toolbar UI for tool selection
 
-use bevy_egui::egui;
 use crate::EditorState;
+use bevy_egui::egui;
 
 /// Available editor tools
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -18,7 +18,10 @@ pub enum EditorTool {
 impl EditorTool {
     /// Returns true if this tool supports Point/Rectangle modes
     pub fn supports_modes(&self) -> bool {
-        matches!(self, EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain)
+        matches!(
+            self,
+            EditorTool::Paint | EditorTool::Erase | EditorTool::Terrain
+        )
     }
 }
 
@@ -49,7 +52,10 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
             ui.label("Tools:");
 
             // Selection tools
-            if ui.selectable_label(editor_state.current_tool == EditorTool::Select, "Select").clicked() {
+            if ui
+                .selectable_label(editor_state.current_tool == EditorTool::Select, "Select")
+                .clicked()
+            {
                 editor_state.current_tool = EditorTool::Select;
             }
 
@@ -63,7 +69,10 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
             ];
 
             for (tool, name) in paint_tools {
-                if ui.selectable_label(editor_state.current_tool == tool, name).clicked() {
+                if ui
+                    .selectable_label(editor_state.current_tool == tool, name)
+                    .clicked()
+                {
                     editor_state.current_tool = tool;
                 }
             }
@@ -71,14 +80,20 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
             ui.separator();
 
             // Terrain tool (for autotiling)
-            if ui.selectable_label(editor_state.current_tool == EditorTool::Terrain, "Terrain").clicked() {
+            if ui
+                .selectable_label(editor_state.current_tool == EditorTool::Terrain, "Terrain")
+                .clicked()
+            {
                 editor_state.current_tool = EditorTool::Terrain;
             }
 
             ui.separator();
 
             // Entity tool
-            if ui.selectable_label(editor_state.current_tool == EditorTool::Entity, "Entity").clicked() {
+            if ui
+                .selectable_label(editor_state.current_tool == EditorTool::Entity, "Entity")
+                .clicked()
+            {
                 editor_state.current_tool = EditorTool::Entity;
             }
 
@@ -91,8 +106,16 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
                     .selected_text(editor_state.tool_mode.label())
                     .width(80.0)
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut editor_state.tool_mode, ToolMode::Point, ToolMode::Point.label());
-                        ui.selectable_value(&mut editor_state.tool_mode, ToolMode::Rectangle, ToolMode::Rectangle.label());
+                        ui.selectable_value(
+                            &mut editor_state.tool_mode,
+                            ToolMode::Point,
+                            ToolMode::Point.label(),
+                        );
+                        ui.selectable_value(
+                            &mut editor_state.tool_mode,
+                            ToolMode::Rectangle,
+                            ToolMode::Rectangle.label(),
+                        );
                     });
 
                 ui.separator();

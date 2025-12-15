@@ -5,8 +5,8 @@ use uuid::Uuid;
 
 use super::Selection;
 use crate::project::Project;
-use crate::RenamingItem;
 use crate::EditorState;
+use crate::RenamingItem;
 
 /// Result from rendering the tree view
 #[derive(Default)]
@@ -447,7 +447,9 @@ fn render_levels_section(
     result: &mut TreeViewResult,
 ) {
     // Get placeable types from schema for entity grouping
-    let placeable_types: Vec<String> = project.schema.placeable_type_names()
+    let placeable_types: Vec<String> = project
+        .schema
+        .placeable_type_names()
         .iter()
         .map(|s| s.to_string())
         .collect();
@@ -464,26 +466,43 @@ fn render_levels_section(
         let is_selected_level = editor_state.selected_level == Some(level_id);
 
         // Collect layer info
-        let layer_info: Vec<_> = level.layers.iter().enumerate().map(|(idx, layer)| {
-            let is_object_layer = matches!(&layer.data, bevy_map_core::LayerData::Objects { .. });
-            let entity_ids: Vec<Uuid> = match &layer.data {
-                bevy_map_core::LayerData::Objects { entities } => entities.clone(),
-                _ => vec![],
-            };
-            (idx, layer.name.clone(), layer.visible, is_object_layer, entity_ids)
-        }).collect();
+        let layer_info: Vec<_> = level
+            .layers
+            .iter()
+            .enumerate()
+            .map(|(idx, layer)| {
+                let is_object_layer =
+                    matches!(&layer.data, bevy_map_core::LayerData::Objects { .. });
+                let entity_ids: Vec<Uuid> = match &layer.data {
+                    bevy_map_core::LayerData::Objects { entities } => entities.clone(),
+                    _ => vec![],
+                };
+                (
+                    idx,
+                    layer.name.clone(),
+                    layer.visible,
+                    is_object_layer,
+                    entity_ids,
+                )
+            })
+            .collect();
 
         // Collect entity info for this level
-        let level_entities: Vec<_> = level.entities.iter().map(|e| {
-            let display_name = e.properties
-                .get("name")
-                .and_then(|v| match v {
-                    bevy_map_core::Value::String(s) => Some(s.clone()),
-                    _ => None,
-                })
-                .unwrap_or_else(|| "(unnamed)".to_string());
-            (e.id, e.type_name.clone(), e.position, display_name)
-        }).collect();
+        let level_entities: Vec<_> = level
+            .entities
+            .iter()
+            .map(|e| {
+                let display_name = e
+                    .properties
+                    .get("name")
+                    .and_then(|v| match v {
+                        bevy_map_core::Value::String(s) => Some(s.clone()),
+                        _ => None,
+                    })
+                    .unwrap_or_else(|| "(unnamed)".to_string());
+                (e.id, e.type_name.clone(), e.position, display_name)
+            })
+            .collect();
 
         // Check if this level is being renamed
         let is_renaming = matches!(
@@ -497,7 +516,9 @@ fn render_levels_section(
                 ui.label("▶"); // Collapsed indicator
                 let text_response = ui.text_edit_singleline(&mut editor_state.rename_buffer);
                 if text_response.lost_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !editor_state.rename_buffer.is_empty() {
+                    if ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        && !editor_state.rename_buffer.is_empty()
+                    {
                         result.commit_rename = Some(editor_state.rename_buffer.clone());
                     }
                     result.cancel_rename = true;
@@ -511,7 +532,8 @@ fn render_levels_section(
                 .default_open(is_selected_level)
                 .show(ui, |ui| {
                     // Show layers under this level
-                    for (layer_idx, layer_name, visible, is_object_layer, entity_ids) in &layer_info {
+                    for (layer_idx, layer_name, visible, is_object_layer, entity_ids) in &layer_info
+                    {
                         let layer_selected = editor_state.selected_level == Some(level_id)
                             && editor_state.selected_layer == Some(*layer_idx);
 
@@ -624,7 +646,9 @@ fn render_tile_layer(
             ui.label("[Tile]");
             let text_response = ui.text_edit_singleline(&mut editor_state.rename_buffer);
             if text_response.lost_focus() {
-                if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !editor_state.rename_buffer.is_empty() {
+                if ui.input(|i| i.key_pressed(egui::Key::Enter))
+                    && !editor_state.rename_buffer.is_empty()
+                {
                     result.commit_rename = Some(editor_state.rename_buffer.clone());
                 }
                 result.cancel_rename = true;
@@ -686,7 +710,8 @@ fn render_object_layer(
     project: &Project,
 ) {
     // Get entities on this layer
-    let layer_entities: Vec<_> = level_entities.iter()
+    let layer_entities: Vec<_> = level_entities
+        .iter()
         .filter(|(id, _, _, _)| entity_ids.contains(id))
         .collect();
 
@@ -875,7 +900,9 @@ fn render_sprite_sheets_section(
         ui.label("(no sprite sheets)");
     } else {
         // Collect sprite sheet data to avoid borrow issues
-        let sprite_sheet_data: Vec<_> = project.sprite_sheets.iter()
+        let sprite_sheet_data: Vec<_> = project
+            .sprite_sheets
+            .iter()
             .map(|s| (s.id, s.name.clone()))
             .collect();
 
@@ -900,7 +927,9 @@ fn render_sprite_sheets_section(
             if is_renaming {
                 let text_response = ui.text_edit_singleline(&mut editor_state.rename_buffer);
                 if text_response.lost_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !editor_state.rename_buffer.is_empty() {
+                    if ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        && !editor_state.rename_buffer.is_empty()
+                    {
                         result.commit_rename = Some(editor_state.rename_buffer.clone());
                     }
                     result.cancel_rename = true;
@@ -956,7 +985,9 @@ fn render_dialogues_section(
         ui.label("(no dialogues)");
     } else {
         // Collect dialogue data to avoid borrow issues
-        let dialogue_data: Vec<_> = project.dialogues.iter()
+        let dialogue_data: Vec<_> = project
+            .dialogues
+            .iter()
             .map(|d| (d.id.clone(), d.name.clone()))
             .collect();
 
@@ -981,7 +1012,9 @@ fn render_dialogues_section(
             if is_renaming {
                 let text_response = ui.text_edit_singleline(&mut editor_state.rename_buffer);
                 if text_response.lost_focus() {
-                    if ui.input(|i| i.key_pressed(egui::Key::Enter)) && !editor_state.rename_buffer.is_empty() {
+                    if ui.input(|i| i.key_pressed(egui::Key::Enter))
+                        && !editor_state.rename_buffer.is_empty()
+                    {
                         result.commit_rename = Some(editor_state.rename_buffer.clone());
                     }
                     result.cancel_rename = true;

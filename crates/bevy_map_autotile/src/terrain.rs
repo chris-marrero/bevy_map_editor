@@ -405,11 +405,7 @@ mod tests {
 
     #[test]
     fn test_terrain_set_find_uniform() {
-        let mut set = TerrainSet::new(
-            "Test".to_string(),
-            Uuid::new_v4(),
-            TerrainSetType::Corner,
-        );
+        let mut set = TerrainSet::new("Test".to_string(), Uuid::new_v4(), TerrainSetType::Corner);
 
         set.add_terrain("Grass".to_string(), Color::GREEN);
 

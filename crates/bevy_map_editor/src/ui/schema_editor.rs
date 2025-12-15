@@ -116,7 +116,11 @@ impl PropertyEditState {
             default: None,
             min: self.min.parse().ok(),
             max: self.max.parse().ok(),
-            show_if: if self.show_if.is_empty() { None } else { Some(self.show_if.clone()) },
+            show_if: if self.show_if.is_empty() {
+                None
+            } else {
+                Some(self.show_if.clone())
+            },
             enum_type: self.enum_type.clone(),
             ref_type: self.ref_type.clone(),
             item_type: self.item_type.clone(),
@@ -124,7 +128,6 @@ impl PropertyEditState {
         }
     }
 }
-
 
 /// Render the schema editor window
 pub fn render_schema_editor(
@@ -145,24 +148,34 @@ pub fn render_schema_editor(
         .show(ctx, |ui| {
             // Tab bar
             ui.horizontal(|ui| {
-                if ui.selectable_label(
-                    editor_state.schema_editor_state.active_tab == SchemaTab::Enums,
-                    "Enums",
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        editor_state.schema_editor_state.active_tab == SchemaTab::Enums,
+                        "Enums",
+                    )
+                    .clicked()
+                {
                     editor_state.schema_editor_state.active_tab = SchemaTab::Enums;
                 }
-                if ui.selectable_label(
-                    editor_state.schema_editor_state.active_tab == SchemaTab::DataTypes,
-                    "Data Types",
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        editor_state.schema_editor_state.active_tab == SchemaTab::DataTypes,
+                        "Data Types",
+                    )
+                    .clicked()
+                {
                     editor_state.schema_editor_state.active_tab = SchemaTab::DataTypes;
                 }
             });
             ui.separator();
 
             match editor_state.schema_editor_state.active_tab {
-                SchemaTab::Enums => render_enums_tab(ui, &mut editor_state.schema_editor_state, project),
-                SchemaTab::DataTypes => render_data_types_tab(ui, &mut editor_state.schema_editor_state, project),
+                SchemaTab::Enums => {
+                    render_enums_tab(ui, &mut editor_state.schema_editor_state, project)
+                }
+                SchemaTab::DataTypes => {
+                    render_data_types_tab(ui, &mut editor_state.schema_editor_state, project)
+                }
             }
         });
 
@@ -330,7 +343,10 @@ fn render_data_types_tab(
                 if ui.button("+").clicked() && !state.new_type_name.is_empty() {
                     let name = state.new_type_name.clone();
                     if !project.schema.data_types.contains_key(&name) {
-                        project.schema.data_types.insert(name.clone(), TypeDef::default());
+                        project
+                            .schema
+                            .data_types
+                            .insert(name.clone(), TypeDef::default());
                         state.selected_type = Some(name);
                         project.mark_dirty();
                     }
@@ -343,7 +359,8 @@ fn render_data_types_tab(
             egui::ScrollArea::vertical()
                 .id_salt("type_list_scroll")
                 .show(ui, |ui| {
-                    let mut type_names: Vec<_> = project.schema.data_types.keys().cloned().collect();
+                    let mut type_names: Vec<_> =
+                        project.schema.data_types.keys().cloned().collect();
                     type_names.sort();
 
                     let mut to_delete = None;
@@ -351,13 +368,17 @@ fn render_data_types_tab(
                         let selected = state.selected_type.as_ref() == Some(type_name);
 
                         // Get color for indicator
-                        let color = project.schema.data_types.get(type_name)
+                        let color = project
+                            .schema
+                            .data_types
+                            .get(type_name)
                             .map(|t| parse_color(&t.color))
                             .unwrap_or(egui::Color32::GRAY);
 
                         ui.horizontal(|ui| {
                             // Color indicator
-                            let (rect, _) = ui.allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
+                            let (rect, _) = ui
+                                .allocate_exact_size(egui::vec2(12.0, 12.0), egui::Sense::hover());
                             ui.painter().rect_filled(rect, 2.0, color);
 
                             if ui.selectable_label(selected, type_name).clicked() {
@@ -408,7 +429,12 @@ fn render_type_editor(
     // Read current values for display
     let (current_placeable, current_color, current_icon, current_marker_size) = {
         let type_def = project.schema.data_types.get(type_name).unwrap();
-        (type_def.placeable, type_def.color.clone(), type_def.icon.clone(), type_def.marker_size)
+        (
+            type_def.placeable,
+            type_def.color.clone(),
+            type_def.icon.clone(),
+            type_def.marker_size,
+        )
     };
 
     // Type settings
@@ -428,7 +454,10 @@ fn render_type_editor(
                 .show(ui, |ui| {
                     // Placeable checkbox
                     ui.label("Placeable:");
-                    if ui.checkbox(&mut new_placeable, "Can be placed in levels").changed() {
+                    if ui
+                        .checkbox(&mut new_placeable, "Can be placed in levels")
+                        .changed()
+                    {
                         settings_changed = true;
                     }
                     ui.end_row();
@@ -436,9 +465,12 @@ fn render_type_editor(
                     // Marker size (only shown when placeable)
                     if new_placeable {
                         ui.label("Marker Size:");
-                        if ui.add(egui::DragValue::new(&mut new_marker_size)
-                            .range(8..=64)
-                            .suffix(" px"))
+                        if ui
+                            .add(
+                                egui::DragValue::new(&mut new_marker_size)
+                                    .range(8..=64)
+                                    .suffix(" px"),
+                            )
                             .changed()
                         {
                             settings_changed = true;
@@ -489,14 +521,22 @@ fn render_type_editor(
     if settings_changed {
         if let Some(type_def) = project.schema.data_types.get_mut(type_name) {
             type_def.placeable = new_placeable;
-            type_def.marker_size = if new_placeable { Some(new_marker_size as u32) } else { None };
+            type_def.marker_size = if new_placeable {
+                Some(new_marker_size as u32)
+            } else {
+                None
+            };
             type_def.color = format!(
                 "#{:02x}{:02x}{:02x}",
                 (new_color[0] * 255.0) as u8,
                 (new_color[1] * 255.0) as u8,
                 (new_color[2] * 255.0) as u8
             );
-            type_def.icon = if new_icon.is_empty() { None } else { Some(new_icon) };
+            type_def.icon = if new_icon.is_empty() {
+                None
+            } else {
+                Some(new_icon)
+            };
             project.mark_dirty();
         }
     }
@@ -529,7 +569,11 @@ fn render_type_editor(
                     let selected = state.selected_property_idx == Some(idx);
 
                     let frame_response = egui::Frame::new()
-                        .fill(if selected { ui.style().visuals.selection.bg_fill } else { egui::Color32::TRANSPARENT })
+                        .fill(if selected {
+                            ui.style().visuals.selection.bg_fill
+                        } else {
+                            egui::Color32::TRANSPARENT
+                        })
                         .inner_margin(4.0)
                         .show(ui, |ui| {
                             ui.horizontal(|ui| {
@@ -569,24 +613,33 @@ fn render_type_editor(
                                 });
 
                                 // Make the info area clickable for selection
-                                if info_response.response.interact(egui::Sense::click()).clicked() {
+                                if info_response
+                                    .response
+                                    .interact(egui::Sense::click())
+                                    .clicked()
+                                {
                                     state.selected_property_idx = Some(idx);
                                 }
 
-                                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                    if ui.small_button("X").clicked() {
-                                        to_delete = Some(idx);
-                                    }
-                                    if ui.small_button("Edit").clicked() {
-                                        to_edit = Some(idx);
-                                    }
-                                    if idx + 1 < type_def.properties.len() && ui.small_button("v").clicked() {
-                                        to_move_down = Some(idx);
-                                    }
-                                    if idx > 0 && ui.small_button("^").clicked() {
-                                        to_move_up = Some(idx);
-                                    }
-                                });
+                                ui.with_layout(
+                                    egui::Layout::right_to_left(egui::Align::Center),
+                                    |ui| {
+                                        if ui.small_button("X").clicked() {
+                                            to_delete = Some(idx);
+                                        }
+                                        if ui.small_button("Edit").clicked() {
+                                            to_edit = Some(idx);
+                                        }
+                                        if idx + 1 < type_def.properties.len()
+                                            && ui.small_button("v").clicked()
+                                        {
+                                            to_move_down = Some(idx);
+                                        }
+                                        if idx > 0 && ui.small_button("^").clicked() {
+                                            to_move_up = Some(idx);
+                                        }
+                                    },
+                                );
                             });
                         });
 
@@ -604,7 +657,8 @@ fn render_type_editor(
                 }
                 if let Some(idx) = to_edit {
                     state.selected_property_idx = Some(idx);
-                    state.property_edit_state = PropertyEditState::from_property(&type_def.properties[idx]);
+                    state.property_edit_state =
+                        PropertyEditState::from_property(&type_def.properties[idx]);
                     state.show_edit_property_dialog = true;
                 }
                 if let Some(idx) = to_move_up {
@@ -648,14 +702,23 @@ fn render_add_property_dialog(
         .resizable(false)
         .default_width(400.0)
         .show(ctx, |ui| {
-            render_property_form(ui, &mut editor_state.schema_editor_state.property_edit_state, project, "add");
+            render_property_form(
+                ui,
+                &mut editor_state.schema_editor_state.property_edit_state,
+                project,
+                "add",
+            );
 
             ui.separator();
             ui.horizontal(|ui| {
                 if ui.button("Cancel").clicked() {
                     close = true;
                 }
-                let can_add = !editor_state.schema_editor_state.property_edit_state.name.is_empty();
+                let can_add = !editor_state
+                    .schema_editor_state
+                    .property_edit_state
+                    .name
+                    .is_empty();
                 if ui.add_enabled(can_add, egui::Button::new("Add")).clicked() {
                     add = true;
                     close = true;
@@ -666,7 +729,10 @@ fn render_add_property_dialog(
     if add {
         if let Some(type_name) = &editor_state.schema_editor_state.selected_type.clone() {
             if let Some(type_def) = project.schema.data_types.get_mut(type_name) {
-                let prop = editor_state.schema_editor_state.property_edit_state.to_property();
+                let prop = editor_state
+                    .schema_editor_state
+                    .property_edit_state
+                    .to_property();
                 type_def.properties.push(prop);
                 project.mark_dirty();
             }
@@ -697,15 +763,27 @@ fn render_edit_property_dialog(
         .resizable(false)
         .default_width(400.0)
         .show(ctx, |ui| {
-            render_property_form(ui, &mut editor_state.schema_editor_state.property_edit_state, project, "edit");
+            render_property_form(
+                ui,
+                &mut editor_state.schema_editor_state.property_edit_state,
+                project,
+                "edit",
+            );
 
             ui.separator();
             ui.horizontal(|ui| {
                 if ui.button("Cancel").clicked() {
                     close = true;
                 }
-                let can_save = !editor_state.schema_editor_state.property_edit_state.name.is_empty();
-                if ui.add_enabled(can_save, egui::Button::new("Save")).clicked() {
+                let can_save = !editor_state
+                    .schema_editor_state
+                    .property_edit_state
+                    .name
+                    .is_empty();
+                if ui
+                    .add_enabled(can_save, egui::Button::new("Save"))
+                    .clicked()
+                {
                     save = true;
                     close = true;
                 }
@@ -717,7 +795,10 @@ fn render_edit_property_dialog(
             if let Some(prop_idx) = editor_state.schema_editor_state.selected_property_idx {
                 if let Some(type_def) = project.schema.data_types.get_mut(type_name) {
                     if prop_idx < type_def.properties.len() {
-                        let prop = editor_state.schema_editor_state.property_edit_state.to_property();
+                        let prop = editor_state
+                            .schema_editor_state
+                            .property_edit_state
+                            .to_property();
                         type_def.properties[prop_idx] = prop;
                         project.mark_dirty();
                     }
@@ -775,7 +856,8 @@ fn render_property_form(
                     if !project.schema.data_types.is_empty() {
                         ui.separator();
                         ui.label("Custom Types:");
-                        let mut type_names: Vec<_> = project.schema.data_types.keys().cloned().collect();
+                        let mut type_names: Vec<_> =
+                            project.schema.data_types.keys().cloned().collect();
                         type_names.sort();
                         for type_name in &type_names {
                             let is_selected = state.prop_type == PropType::Ref
@@ -813,7 +895,10 @@ fn render_property_form(
                         .selected_text(&selected)
                         .show_ui(ui, |ui| {
                             for name in &enum_names {
-                                if ui.selectable_label(state.enum_type.as_ref() == Some(name), name).clicked() {
+                                if ui
+                                    .selectable_label(state.enum_type.as_ref() == Some(name), name)
+                                    .clicked()
+                                {
                                     state.enum_type = Some(name.clone());
                                 }
                             }
@@ -828,7 +913,10 @@ fn render_property_form(
                         .selected_text(&selected)
                         .show_ui(ui, |ui| {
                             for name in &type_names {
-                                if ui.selectable_label(state.ref_type.as_ref() == Some(name), name).clicked() {
+                                if ui
+                                    .selectable_label(state.ref_type.as_ref() == Some(name), name)
+                                    .clicked()
+                                {
                                     state.ref_type = Some(name.clone());
                                 }
                             }
@@ -844,7 +932,13 @@ fn render_property_form(
                         .selected_text(&selected)
                         .show_ui(ui, |ui| {
                             for name in item_types {
-                                if ui.selectable_label(state.item_type.as_ref() == Some(&name.to_string()), name).clicked() {
+                                if ui
+                                    .selectable_label(
+                                        state.item_type.as_ref() == Some(&name.to_string()),
+                                        name,
+                                    )
+                                    .clicked()
+                                {
                                     state.item_type = Some(name.to_string());
                                 }
                             }
@@ -852,10 +946,17 @@ fn render_property_form(
                             if !project.schema.data_types.is_empty() {
                                 ui.separator();
                                 ui.label("Custom Types:");
-                                let mut type_names: Vec<_> = project.schema.data_types.keys().cloned().collect();
+                                let mut type_names: Vec<_> =
+                                    project.schema.data_types.keys().cloned().collect();
                                 type_names.sort();
                                 for type_name in &type_names {
-                                    if ui.selectable_label(state.item_type.as_ref() == Some(type_name), type_name).clicked() {
+                                    if ui
+                                        .selectable_label(
+                                            state.item_type.as_ref() == Some(type_name),
+                                            type_name,
+                                        )
+                                        .clicked()
+                                    {
                                         state.item_type = Some(type_name.clone());
                                     }
                                 }
@@ -874,7 +975,11 @@ fn render_property_form(
 
     // Help text for show_if
     ui.add_space(4.0);
-    ui.label(egui::RichText::new("'Show If' format: property_name=value (e.g., type=weapon)").small().weak());
+    ui.label(
+        egui::RichText::new("'Show If' format: property_name=value (e.g., type=weapon)")
+            .small()
+            .weak(),
+    );
 }
 
 /// Parse a hex color string to egui Color32

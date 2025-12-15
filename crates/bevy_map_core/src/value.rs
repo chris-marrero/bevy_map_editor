@@ -111,9 +111,7 @@ impl Value {
                 serde_json::Value::Array(arr.iter().map(|v| v.to_json()).collect())
             }
             Value::Object(obj) => serde_json::Value::Object(
-                obj.iter()
-                    .map(|(k, v)| (k.clone(), v.to_json()))
-                    .collect(),
+                obj.iter().map(|(k, v)| (k.clone(), v.to_json())).collect(),
             ),
         }
     }

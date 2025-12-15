@@ -1,7 +1,7 @@
 //! Terrain-related dialogs
 
 use bevy_egui::egui;
-use bevy_map_autotile::{TerrainSet, TerrainSetType, Color};
+use bevy_map_autotile::{Color, TerrainSet, TerrainSetType};
 
 use crate::project::Project;
 use crate::EditorState;
@@ -27,7 +27,9 @@ pub fn render_new_terrain_dialog(
 
             ui.horizontal(|ui| {
                 ui.label("First Tile:");
-                ui.add(egui::DragValue::new(&mut editor_state.new_terrain_first_tile));
+                ui.add(egui::DragValue::new(
+                    &mut editor_state.new_terrain_first_tile,
+                ));
             });
 
             ui.separator();
@@ -73,9 +75,21 @@ pub fn render_new_terrain_set_dialog(
                 egui::ComboBox::from_id_salt("terrain_set_type")
                     .selected_text(format!("{:?}", editor_state.new_terrain_set_type))
                     .show_ui(ui, |ui| {
-                        ui.selectable_value(&mut editor_state.new_terrain_set_type, TerrainSetType::Corner, "Corner");
-                        ui.selectable_value(&mut editor_state.new_terrain_set_type, TerrainSetType::Edge, "Edge");
-                        ui.selectable_value(&mut editor_state.new_terrain_set_type, TerrainSetType::Mixed, "Mixed");
+                        ui.selectable_value(
+                            &mut editor_state.new_terrain_set_type,
+                            TerrainSetType::Corner,
+                            "Corner",
+                        );
+                        ui.selectable_value(
+                            &mut editor_state.new_terrain_set_type,
+                            TerrainSetType::Edge,
+                            "Edge",
+                        );
+                        ui.selectable_value(
+                            &mut editor_state.new_terrain_set_type,
+                            TerrainSetType::Mixed,
+                            "Mixed",
+                        );
                     });
             });
 
@@ -133,7 +147,9 @@ pub fn render_add_terrain_to_set_dialog(
 
             ui.horizontal(|ui| {
                 if ui.button("Add").clicked() {
-                    if let Some(terrain_set) = project.autotile_config.terrain_sets
+                    if let Some(terrain_set) = project
+                        .autotile_config
+                        .terrain_sets
                         .iter_mut()
                         .find(|ts| ts.id == terrain_set_id)
                     {

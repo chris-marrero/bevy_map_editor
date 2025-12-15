@@ -1,11 +1,17 @@
 //! Tileset and terrain editor window
 //!
 //! Implements Tiled-style terrain corner/edge painting where users click
-//! directly on tile corners or edges to assign terrain types.
+//! directly on zones within each tile to assign terrain types.
+//!
+//! This follows Tiled's tileset editor approach:
+//! - Each tile has clickable zones (corners, edges, or both for Mixed)
+//! - Clicking assigns the selected terrain to that zone of that tile
+//! - Visual overlays show assigned terrain with curved boundaries
 
-use bevy_egui::egui::{self, Color32, Shape};
+use bevy_egui::egui::{self, Color32, Pos2, Shape};
 use bevy_map_autotile::terrain::Color as TerrainColor;
 use bevy_map_autotile::TerrainSetType;
+use std::f32::consts::PI;
 
 use super::TilesetTextureCache;
 use crate::project::Project;
@@ -23,61 +29,118 @@ pub struct TilesetEditorState {
 }
 
 // ============================================================================
-// Zone Detection - determines which corner/edge was clicked
+// Per-Tile Zone Detection (Tiled-style)
 // ============================================================================
 
-/// Detect which zone was clicked based on terrain set type.
-/// Returns INTERNAL TileTerrainData index (0-3 for Corner/Edge, 0-7 for Mixed).
-/// The conversion to Tiled-compatible WangId happens in `tile_terrain_to_wang_id()`.
-fn detect_click_zone(
-    local_x: f32,
-    local_y: f32,
-    tile_size: f32,
-    set_type: TerrainSetType,
-) -> Option<usize> {
-    let nx = local_x / tile_size;
-    let ny = local_y / tile_size;
-
+/// Determine which zone was clicked within a tile based on local coordinates.
+///
+/// For Corner terrain sets (4 zones):
+/// ```text
+/// +-------+
+/// | 0 | 1 |  TL=0, TR=1
+/// |---+---|
+/// | 2 | 3 |  BL=2, BR=3
+/// +-------+
+/// ```
+///
+/// For Edge terrain sets (4 zones):
+/// ```text
+/// +---0---+
+/// |       |  Top=0, Right=1, Bottom=2, Left=3
+/// 3       1
+/// |       |
+/// +---2---+
+/// ```
+///
+/// For Mixed terrain sets (8 zones, center ignored):
+/// ```text
+/// +---+---+---+
+/// | 0 | 1 | 2 |  TL=0, Top=1, TR=2
+/// +---+---+---+
+/// | 7 | X | 3 |  Left=7, (center ignored), Right=3
+/// +---+---+---+
+/// | 6 | 5 | 4 |  BL=6, Bottom=5, BR=4
+/// +---+---+---+
+/// ```
+fn get_tile_zone(local_x: f32, local_y: f32, set_type: TerrainSetType) -> Option<usize> {
     match set_type {
         TerrainSetType::Corner => {
-            // Internal: 0=TL, 1=TR, 2=BL, 3=BR (maps to WangId 7,1,5,3)
-            let is_top = ny < 0.5;
-            let is_left = nx < 0.5;
-            Some(match (is_left, is_top) {
-                (true, true) => 0,   // TL
-                (false, true) => 1,  // TR
-                (true, false) => 2,  // BL
-                (false, false) => 3, // BR
+            // Simple quadrant detection
+            let right = local_x > 0.5;
+            let bottom = local_y > 0.5;
+            Some(match (right, bottom) {
+                (false, false) => 0, // TL
+                (true, false) => 1,  // TR
+                (false, true) => 2,  // BL
+                (true, true) => 3,   // BR
             })
         }
         TerrainSetType::Edge => {
-            // Internal: 0=Top, 1=Right, 2=Bottom, 3=Left (maps to WangId 0,2,4,6)
-            let cx = nx - 0.5;
-            let cy = ny - 0.5;
-            Some(if cx.abs() > cy.abs() {
-                if cx > 0.0 { 1 } else { 3 } // Right or Left
+            // Find nearest edge by comparing distance to center
+            let dx = (local_x - 0.5).abs();
+            let dy = (local_y - 0.5).abs();
+            if dy > dx {
+                // Vertical distance larger = closer to top/bottom edge
+                Some(if local_y < 0.5 { 0 } else { 2 }) // Top or Bottom
             } else {
-                if cy < 0.0 { 0 } else { 2 } // Top or Bottom
-            })
+                // Horizontal distance larger = closer to left/right edge
+                Some(if local_x < 0.5 { 3 } else { 1 }) // Left or Right
+            }
         }
         TerrainSetType::Mixed => {
-            // Internal: 0=TL, 1=Top, 2=TR, 3=Right, 4=BR, 5=Bottom, 6=BL, 7=Left
-            // Maps to WangId: 7, 0, 1, 2, 3, 4, 5, 6
-            let zone_x = if nx < 0.333 { 0 } else if nx < 0.667 { 1 } else { 2 };
-            let zone_y = if ny < 0.333 { 0 } else if ny < 0.667 { 1 } else { 2 };
+            // 3x3 grid, center returns None (not clickable)
+            let zone_x = if local_x < 0.33 {
+                0
+            } else if local_x < 0.67 {
+                1
+            } else {
+                2
+            };
+            let zone_y = if local_y < 0.33 {
+                0
+            } else if local_y < 0.67 {
+                1
+            } else {
+                2
+            };
             match (zone_x, zone_y) {
-                (0, 0) => Some(0), // TL corner
-                (1, 0) => Some(1), // Top edge
-                (2, 0) => Some(2), // TR corner
-                (2, 1) => Some(3), // Right edge
-                (2, 2) => Some(4), // BR corner
-                (1, 2) => Some(5), // Bottom edge
-                (0, 2) => Some(6), // BL corner
-                (0, 1) => Some(7), // Left edge
-                _ => None,         // Center - no action
+                (0, 0) => Some(0), // TL
+                (1, 0) => Some(1), // Top
+                (2, 0) => Some(2), // TR
+                (2, 1) => Some(3), // Right
+                (2, 2) => Some(4), // BR
+                (1, 2) => Some(5), // Bottom
+                (0, 2) => Some(6), // BL
+                (0, 1) => Some(7), // Left
+                (1, 1) => None,    // Center - not clickable
+                _ => None,
             }
         }
     }
+}
+
+/// Generate points for an arc approximation
+fn arc_points(cx: f32, cy: f32, r: f32, start: f32, end: f32, segments: usize) -> Vec<Pos2> {
+    (0..=segments)
+        .map(|i| {
+            let t = i as f32 / segments as f32;
+            let angle = start + t * (end - start);
+            Pos2::new(cx + r * angle.cos(), cy + r * angle.sin())
+        })
+        .collect()
+}
+
+/// Paint terrain at a specific zone within a single tile.
+///
+/// This is the Tiled-style approach: each click assigns terrain to exactly
+/// one position on one tile, rather than affecting multiple tiles.
+fn paint_terrain_zone(
+    terrain_set: &mut bevy_map_autotile::TerrainSet,
+    tile_index: u32,
+    position: usize,
+    terrain_idx: Option<usize>,
+) {
+    terrain_set.set_tile_terrain(tile_index, position, terrain_idx);
 }
 
 // ============================================================================
@@ -98,12 +161,8 @@ fn draw_terrain_overlays(
         if let Some(terrain_idx) = terrain_data.get(pos) {
             if let Some(&color) = terrain_colors.get(terrain_idx) {
                 // Make color semi-transparent
-                let overlay_color = Color32::from_rgba_unmultiplied(
-                    color.r(),
-                    color.g(),
-                    color.b(),
-                    180,
-                );
+                let overlay_color =
+                    Color32::from_rgba_unmultiplied(color.r(), color.g(), color.b(), 180);
 
                 match set_type {
                     TerrainSetType::Corner => {
@@ -121,68 +180,162 @@ fn draw_terrain_overlays(
     }
 }
 
-/// Draw a corner triangle overlay (for Corner type terrain sets)
+/// Draw a Tiled-style corner overlay with curved inner boundary.
 /// Position: 0=TL, 1=TR, 2=BL, 3=BR
-fn draw_corner_overlay(
-    painter: &egui::Painter,
-    rect: egui::Rect,
-    position: usize,
-    color: Color32,
-) {
-    let center = rect.center();
-    let tl = rect.left_top();
-    let tr = rect.right_top();
-    let bl = rect.left_bottom();
-    let br = rect.right_bottom();
-    let top_mid = egui::pos2(center.x, rect.top());
-    let bottom_mid = egui::pos2(center.x, rect.bottom());
-    let left_mid = egui::pos2(rect.left(), center.y);
-    let right_mid = egui::pos2(rect.right(), center.y);
+/// Uses d = 1/6 of tile size, matching Tiled's wangoverlay.cpp
+fn draw_corner_overlay(painter: &egui::Painter, rect: egui::Rect, position: usize, color: Color32) {
+    let w = rect.width();
+    let d = w / 6.0; // Tiled uses 1/6 of tile size
+    let arc_segments = 6;
 
     let points = match position {
-        0 => vec![tl, top_mid, center, left_mid],      // Top-Left
-        1 => vec![top_mid, tr, right_mid, center],     // Top-Right
-        2 => vec![left_mid, center, bottom_mid, bl],   // Bottom-Left
-        3 => vec![center, right_mid, br, bottom_mid],  // Bottom-Right
+        0 => corner_fill_tl(rect, d, arc_segments),
+        1 => corner_fill_tr(rect, d, arc_segments),
+        2 => corner_fill_bl(rect, d, arc_segments),
+        3 => corner_fill_br(rect, d, arc_segments),
         _ => return,
     };
 
     painter.add(Shape::convex_polygon(points, color, egui::Stroke::NONE));
 }
 
-/// Draw an edge overlay (for Edge type terrain sets)
-/// Position: 0=Top, 1=Right, 2=Bottom, 3=Left
-fn draw_edge_overlay(
-    painter: &egui::Painter,
-    rect: egui::Rect,
-    position: usize,
-    color: Color32,
-) {
-    let center = rect.center();
+/// Generate filled region for top-left corner with concave arc boundary
+fn corner_fill_tl(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
     let tl = rect.left_top();
+    let mut pts = vec![tl, Pos2::new(tl.x + 2.0 * d, tl.y)];
+    // Arc from (tl.x + 2d, tl.y) curving inward to (tl.x, tl.y + 2d)
+    // Arc center at (tl.x + 2d, tl.y + 2d), radius 2d, from -PI/2 to -PI
+    pts.extend(arc_points(tl.x + 2.0 * d, tl.y + 2.0 * d, 2.0 * d, -PI / 2.0, -PI, segments));
+    pts.push(Pos2::new(tl.x, tl.y + 2.0 * d));
+    pts
+}
+
+/// Generate filled region for top-right corner with concave arc boundary
+fn corner_fill_tr(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
     let tr = rect.right_top();
+    let mut pts = vec![tr, Pos2::new(tr.x, tr.y + 2.0 * d)];
+    // Arc from (tr.x, tr.y + 2d) curving inward to (tr.x - 2d, tr.y)
+    // Arc center at (tr.x - 2d, tr.y + 2d), radius 2d, from 0 to -PI/2
+    pts.extend(arc_points(tr.x - 2.0 * d, tr.y + 2.0 * d, 2.0 * d, 0.0, -PI / 2.0, segments));
+    pts.push(Pos2::new(tr.x - 2.0 * d, tr.y));
+    pts
+}
+
+/// Generate filled region for bottom-left corner with concave arc boundary
+fn corner_fill_bl(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
     let bl = rect.left_bottom();
+    let mut pts = vec![bl, Pos2::new(bl.x, bl.y - 2.0 * d)];
+    // Arc from (bl.x, bl.y - 2d) curving inward to (bl.x + 2d, bl.y)
+    // Arc center at (bl.x + 2d, bl.y - 2d), radius 2d, from PI to PI/2
+    pts.extend(arc_points(bl.x + 2.0 * d, bl.y - 2.0 * d, 2.0 * d, PI, PI / 2.0, segments));
+    pts.push(Pos2::new(bl.x + 2.0 * d, bl.y));
+    pts
+}
+
+/// Generate filled region for bottom-right corner with concave arc boundary
+fn corner_fill_br(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
     let br = rect.right_bottom();
+    let mut pts = vec![br, Pos2::new(br.x - 2.0 * d, br.y)];
+    // Arc from (br.x - 2d, br.y) curving inward to (br.x, br.y - 2d)
+    // Arc center at (br.x - 2d, br.y - 2d), radius 2d, from PI/2 to 0
+    pts.extend(arc_points(br.x - 2.0 * d, br.y - 2.0 * d, 2.0 * d, PI / 2.0, 0.0, segments));
+    pts.push(Pos2::new(br.x, br.y - 2.0 * d));
+    pts
+}
+
+/// Draw a Tiled-style edge overlay (strip along edge with rounded ends).
+/// Position: 0=Top, 1=Right, 2=Bottom, 3=Left
+/// Uses d = 1/6 of tile size, matching Tiled's wangoverlay.cpp
+fn draw_edge_overlay(painter: &egui::Painter, rect: egui::Rect, position: usize, color: Color32) {
+    let w = rect.width();
+    let d = w / 6.0; // Tiled uses 1/6 of tile size
+    let arc_segments = 4;
 
     let points = match position {
-        0 => vec![tl, tr, center],           // Top
-        1 => vec![tr, br, center],           // Right
-        2 => vec![br, bl, center],           // Bottom
-        3 => vec![bl, tl, center],           // Left
+        0 => edge_strip_top(rect, d, arc_segments),
+        1 => edge_strip_right(rect, d, arc_segments),
+        2 => edge_strip_bottom(rect, d, arc_segments),
+        3 => edge_strip_left(rect, d, arc_segments),
         _ => return,
     };
 
     painter.add(Shape::convex_polygon(points, color, egui::Stroke::NONE));
+}
+
+/// Generate edge strip for top edge
+fn edge_strip_top(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
+    let left = rect.left() + 2.0 * d;
+    let right = rect.right() - 2.0 * d;
+    let top = rect.top();
+
+    let mut pts = Vec::new();
+    // Start at top-left of strip
+    pts.push(Pos2::new(left, top));
+    // Go to top-right
+    pts.push(Pos2::new(right, top));
+    // Arc at right end (semicircle going down and back)
+    pts.extend(arc_points(right, top + d, d, -PI / 2.0, PI / 2.0, segments));
+    // Go back left along bottom
+    pts.push(Pos2::new(left, top + 2.0 * d));
+    // Arc at left end (semicircle going up and back)
+    pts.extend(arc_points(left, top + d, d, PI / 2.0, 3.0 * PI / 2.0, segments));
+    pts
+}
+
+/// Generate edge strip for right edge
+fn edge_strip_right(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
+    let top = rect.top() + 2.0 * d;
+    let bottom = rect.bottom() - 2.0 * d;
+    let right = rect.right();
+
+    let mut pts = Vec::new();
+    pts.push(Pos2::new(right, top));
+    pts.push(Pos2::new(right, bottom));
+    // Arc at bottom (semicircle going left and back)
+    pts.extend(arc_points(right - d, bottom, d, 0.0, PI, segments));
+    pts.push(Pos2::new(right - 2.0 * d, top));
+    // Arc at top (semicircle going right and back)
+    pts.extend(arc_points(right - d, top, d, PI, 2.0 * PI, segments));
+    pts
+}
+
+/// Generate edge strip for bottom edge
+fn edge_strip_bottom(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
+    let left = rect.left() + 2.0 * d;
+    let right = rect.right() - 2.0 * d;
+    let bottom = rect.bottom();
+
+    let mut pts = Vec::new();
+    pts.push(Pos2::new(left, bottom));
+    pts.push(Pos2::new(right, bottom));
+    // Arc at right end (semicircle going up and back)
+    pts.extend(arc_points(right, bottom - d, d, PI / 2.0, -PI / 2.0, segments));
+    pts.push(Pos2::new(left, bottom - 2.0 * d));
+    // Arc at left end (semicircle going down and back)
+    pts.extend(arc_points(left, bottom - d, d, -PI / 2.0, -3.0 * PI / 2.0, segments));
+    pts
+}
+
+/// Generate edge strip for left edge
+fn edge_strip_left(rect: egui::Rect, d: f32, segments: usize) -> Vec<Pos2> {
+    let top = rect.top() + 2.0 * d;
+    let bottom = rect.bottom() - 2.0 * d;
+    let left = rect.left();
+
+    let mut pts = Vec::new();
+    pts.push(Pos2::new(left, top));
+    pts.push(Pos2::new(left, bottom));
+    // Arc at bottom (semicircle going right and back)
+    pts.extend(arc_points(left + d, bottom, d, PI, 0.0, segments));
+    pts.push(Pos2::new(left + 2.0 * d, top));
+    // Arc at top (semicircle going left and back)
+    pts.extend(arc_points(left + d, top, d, 0.0, -PI, segments));
+    pts
 }
 
 /// Draw a mixed overlay (for Mixed type terrain sets - 3x3 grid)
 /// Position: 0=TL, 1=Top, 2=TR, 3=Right, 4=BR, 5=Bottom, 6=BL, 7=Left
-fn draw_mixed_overlay(
-    painter: &egui::Painter,
-    rect: egui::Rect,
-    position: usize,
-    color: Color32,
-) {
+fn draw_mixed_overlay(painter: &egui::Painter, rect: egui::Rect, position: usize, color: Color32) {
     let w = rect.width() / 3.0;
     let h = rect.height() / 3.0;
     let left = rect.left();
@@ -190,14 +343,14 @@ fn draw_mixed_overlay(
 
     // Calculate cell position based on 3x3 grid layout
     let cell_rect = match position {
-        0 => egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(w, h)),               // TL
-        1 => egui::Rect::from_min_size(egui::pos2(left + w, top), egui::vec2(w, h)),           // Top
-        2 => egui::Rect::from_min_size(egui::pos2(left + 2.0 * w, top), egui::vec2(w, h)),     // TR
+        0 => egui::Rect::from_min_size(egui::pos2(left, top), egui::vec2(w, h)), // TL
+        1 => egui::Rect::from_min_size(egui::pos2(left + w, top), egui::vec2(w, h)), // Top
+        2 => egui::Rect::from_min_size(egui::pos2(left + 2.0 * w, top), egui::vec2(w, h)), // TR
         3 => egui::Rect::from_min_size(egui::pos2(left + 2.0 * w, top + h), egui::vec2(w, h)), // Right
         4 => egui::Rect::from_min_size(egui::pos2(left + 2.0 * w, top + 2.0 * h), egui::vec2(w, h)), // BR
         5 => egui::Rect::from_min_size(egui::pos2(left + w, top + 2.0 * h), egui::vec2(w, h)), // Bottom
         6 => egui::Rect::from_min_size(egui::pos2(left, top + 2.0 * h), egui::vec2(w, h)),     // BL
-        7 => egui::Rect::from_min_size(egui::pos2(left, top + h), egui::vec2(w, h)),           // Left
+        7 => egui::Rect::from_min_size(egui::pos2(left, top + h), egui::vec2(w, h)), // Left
         _ => return,
     };
 
@@ -213,10 +366,7 @@ fn draw_mixed_center_indicator(painter: &egui::Painter, rect: egui::Rect) {
     let top = rect.top();
 
     // Center cell is at (1, 1) in the 3x3 grid
-    let center_rect = egui::Rect::from_min_size(
-        egui::pos2(left + w, top + h),
-        egui::vec2(w, h),
-    );
+    let center_rect = egui::Rect::from_min_size(egui::pos2(left + w, top + h), egui::vec2(w, h));
 
     // Draw a subtle X pattern to indicate non-clickable
     let gray = Color32::from_rgba_unmultiplied(128, 128, 128, 60);
@@ -227,6 +377,29 @@ fn draw_mixed_center_indicator(painter: &egui::Painter, rect: egui::Rect) {
 
     painter.line_segment([tl, br], egui::Stroke::new(1.0, gray));
     painter.line_segment([tr, bl], egui::Stroke::new(1.0, gray));
+}
+
+/// Draw hover highlight for the currently hovered zone within a tile.
+/// This gives visual feedback showing which zone will be affected on click.
+fn draw_zone_hover_highlight(
+    painter: &egui::Painter,
+    rect: egui::Rect,
+    position: usize,
+    set_type: TerrainSetType,
+) {
+    let hover_color = Color32::from_rgba_unmultiplied(255, 255, 100, 100);
+
+    match set_type {
+        TerrainSetType::Corner => {
+            draw_corner_overlay(painter, rect, position, hover_color);
+        }
+        TerrainSetType::Edge => {
+            draw_edge_overlay(painter, rect, position, hover_color);
+        }
+        TerrainSetType::Mixed => {
+            draw_mixed_overlay(painter, rect, position, hover_color);
+        }
+    }
 }
 
 #[derive(Default, PartialEq)]
@@ -282,23 +455,35 @@ pub fn render_tileset_editor(
 
             // Tab bar
             ui.horizontal(|ui| {
-                if ui.selectable_label(
-                    editor_state.tileset_editor_state.selected_tab == TilesetEditorTab::Images,
-                    "Images",
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        editor_state.tileset_editor_state.selected_tab == TilesetEditorTab::Images,
+                        "Images",
+                    )
+                    .clicked()
+                {
                     editor_state.tileset_editor_state.selected_tab = TilesetEditorTab::Images;
                 }
-                if ui.selectable_label(
-                    editor_state.tileset_editor_state.selected_tab == TilesetEditorTab::TerrainSets,
-                    "Terrain Sets",
-                ).clicked() {
+                if ui
+                    .selectable_label(
+                        editor_state.tileset_editor_state.selected_tab
+                            == TilesetEditorTab::TerrainSets,
+                        "Terrain Sets",
+                    )
+                    .clicked()
+                {
                     editor_state.tileset_editor_state.selected_tab = TilesetEditorTab::TerrainSets;
                 }
-                if ui.selectable_label(
-                    editor_state.tileset_editor_state.selected_tab == TilesetEditorTab::TileProperties,
-                    "Tile Properties",
-                ).clicked() {
-                    editor_state.tileset_editor_state.selected_tab = TilesetEditorTab::TileProperties;
+                if ui
+                    .selectable_label(
+                        editor_state.tileset_editor_state.selected_tab
+                            == TilesetEditorTab::TileProperties,
+                        "Tile Properties",
+                    )
+                    .clicked()
+                {
+                    editor_state.tileset_editor_state.selected_tab =
+                        TilesetEditorTab::TileProperties;
                 }
             });
 
@@ -366,19 +551,25 @@ fn render_terrain_sets_tab(
     };
 
     // Clone tileset data to avoid borrow conflicts
-    let tileset_data = project.tilesets.iter()
+    let tileset_data = project
+        .tilesets
+        .iter()
         .find(|t| t.id == tileset_id)
         .map(|t| (t.tile_size, t.images.clone(), !t.images.is_empty()));
 
     // Split into left panel (terrain list) and right panel (tileset preview)
     // Using columns() for proper space distribution like the animation editor
     ui.columns(2, |columns| {
-        // Left column: Terrain set and terrain list
-        columns[0].vertical(|ui| {
+        // Left column: Terrain set and terrain list (with scroll area to prevent clipping)
+        egui::ScrollArea::vertical()
+            .auto_shrink([false, false])
+            .show(&mut columns[0], |ui| {
             ui.heading("Terrain Sets");
 
             // List terrain sets for this tileset
-            let terrain_sets: Vec<_> = project.autotile_config.terrain_sets
+            let terrain_sets: Vec<_> = project
+                .autotile_config
+                .terrain_sets
                 .iter()
                 .filter(|ts| ts.tileset_id == tileset_id)
                 .map(|ts| (ts.id, ts.name.clone(), ts.set_type, ts.terrains.len()))
@@ -389,7 +580,9 @@ fn render_terrain_sets_tab(
                     let selected = editor_state.selected_terrain_set == Some(*ts_id);
                     if ui.selectable_label(selected, name).clicked() {
                         editor_state.selected_terrain_set = Some(*ts_id);
-                        editor_state.tileset_editor_state.selected_terrain_for_assignment = None;
+                        editor_state
+                            .tileset_editor_state
+                            .selected_terrain_for_assignment = None;
                     }
                     ui.small(format!("{:?} ({})", set_type, terrain_count));
                 });
@@ -413,18 +606,21 @@ fn render_terrain_sets_tab(
                     for (idx, terrain) in terrain_set.terrains.iter().enumerate() {
                         ui.horizontal(|ui| {
                             let color = terrain_color_to_egui(&terrain.color);
-                            let selected = editor_state.tileset_editor_state.selected_terrain_for_assignment == Some(idx);
+                            let selected = editor_state
+                                .tileset_editor_state
+                                .selected_terrain_for_assignment
+                                == Some(idx);
 
                             // Color swatch
-                            let (rect, _) = ui.allocate_exact_size(
-                                egui::vec2(16.0, 16.0),
-                                egui::Sense::hover(),
-                            );
+                            let (rect, _) = ui
+                                .allocate_exact_size(egui::vec2(16.0, 16.0), egui::Sense::hover());
                             ui.painter().rect_filled(rect, 2.0, color);
 
                             // Terrain name with selection
                             if ui.selectable_label(selected, &terrain.name).clicked() {
-                                editor_state.tileset_editor_state.selected_terrain_for_assignment = Some(idx);
+                                editor_state
+                                    .tileset_editor_state
+                                    .selected_terrain_for_assignment = Some(idx);
                             }
                         });
                     }
@@ -435,9 +631,15 @@ fn render_terrain_sets_tab(
                         if ui.button("+ Add Terrain").clicked() {
                             editor_state.show_add_terrain_to_set_dialog = true;
                         }
-                        if editor_state.tileset_editor_state.selected_terrain_for_assignment.is_some() {
+                        if editor_state
+                            .tileset_editor_state
+                            .selected_terrain_for_assignment
+                            .is_some()
+                        {
                             if ui.button("Clear Selection").clicked() {
-                                editor_state.tileset_editor_state.selected_terrain_for_assignment = None;
+                                editor_state
+                                    .tileset_editor_state
+                                    .selected_terrain_for_assignment = None;
                             }
                         }
                     });
@@ -500,8 +702,8 @@ fn terrain_color_to_egui(color: &TerrainColor) -> Color32 {
     )
 }
 
-/// Render the tileset with Tiled-style terrain corner/edge overlays.
-/// Users can click directly on tile corners/edges to paint terrain assignments.
+/// Render the tileset with Tiled-style per-tile zone painting.
+/// Users click on zones within each tile to assign terrain to that tile's corner/edge/mixed position.
 fn render_tileset_with_terrain_overlay(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
@@ -512,14 +714,18 @@ fn render_tileset_with_terrain_overlay(
     cache: Option<&TilesetTextureCache>,
 ) {
     // Larger display size for easier clicking on corners/edges
-    let display_size = egui::vec2(48.0, 48.0);
+    let tile_display_size = 48.0f32;
+    let display_size = egui::vec2(tile_display_size, tile_display_size);
     let mut virtual_offset = 0u32;
 
     // Get terrain set info for overlays
-    let terrain_info = editor_state.selected_terrain_set
+    let terrain_info = editor_state
+        .selected_terrain_set
         .and_then(|ts_id| project.autotile_config.get_terrain_set(ts_id))
         .map(|ts| {
-            let colors: Vec<Color32> = ts.terrains.iter()
+            let colors: Vec<Color32> = ts
+                .terrains
+                .iter()
                 .map(|t| terrain_color_to_egui(&t.color))
                 .collect();
             (ts.set_type, colors)
@@ -536,6 +742,8 @@ fn render_tileset_with_terrain_overlay(
             .and_then(|c| c.loaded.get(&image.id))
             .map(|(_, tex_id, _, _)| *tex_id);
 
+        let image_virtual_offset = virtual_offset;
+
         ui.collapsing(&image.name, |ui| {
             if image.columns == 0 || image.rows == 0 {
                 ui.label("Image not loaded yet");
@@ -545,188 +753,223 @@ fn render_tileset_with_terrain_overlay(
             let uv_tile_width = 1.0 / image.columns.max(1) as f32;
             let uv_tile_height = 1.0 / image.rows.max(1) as f32;
 
+            // Calculate full grid size (with spacing)
+            let spacing = 2.0f32;
+            let grid_width =
+                image.columns as f32 * tile_display_size + (image.columns - 1) as f32 * spacing;
+            let grid_height =
+                image.rows as f32 * tile_display_size + (image.rows - 1) as f32 * spacing;
+
+            // Allocate the entire grid area for interaction
+            let (grid_rect, grid_response) = ui.allocate_exact_size(
+                egui::vec2(grid_width, grid_height),
+                egui::Sense::click_and_drag(),
+            );
+
+            let grid_origin = grid_rect.left_top();
+
+            // Draw all tiles
             for row in 0..image.rows {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(2.0, 2.0);
+                for col in 0..image.columns {
+                    let local_index = row * image.columns + col;
+                    let virtual_index = image_virtual_offset + local_index;
 
-                    for col in 0..image.columns {
-                        let local_index = row * image.columns + col;
-                        let virtual_index = virtual_offset + local_index;
+                    // Calculate tile rect (accounting for spacing)
+                    let tile_x =
+                        grid_origin.x + col as f32 * (tile_display_size + spacing);
+                    let tile_y =
+                        grid_origin.y + row as f32 * (tile_display_size + spacing);
+                    let rect = egui::Rect::from_min_size(
+                        egui::pos2(tile_x, tile_y),
+                        display_size,
+                    );
 
-                        // Allocate space and get response for interaction
-                        // Use click_and_drag so drag events go to tiles, not ScrollArea
-                        let (rect, response) = ui.allocate_exact_size(
-                            display_size,
-                            egui::Sense::click_and_drag(),
+                    // Draw tile texture
+                    if let Some(tex_id) = texture_id {
+                        let uv_min =
+                            egui::pos2(col as f32 * uv_tile_width, row as f32 * uv_tile_height);
+                        let uv_max = egui::pos2(
+                            (col + 1) as f32 * uv_tile_width,
+                            (row + 1) as f32 * uv_tile_height,
                         );
 
-                        // Draw tile texture
-                        if let Some(tex_id) = texture_id {
-                            let uv_min = egui::pos2(
-                                col as f32 * uv_tile_width,
-                                row as f32 * uv_tile_height,
-                            );
-                            let uv_max = egui::pos2(
-                                (col + 1) as f32 * uv_tile_width,
-                                (row + 1) as f32 * uv_tile_height,
-                            );
-
-                            // Draw texture using mesh
-                            let mut mesh = egui::Mesh::with_texture(tex_id);
-                            mesh.add_rect_with_uv(
-                                rect,
-                                egui::Rect::from_min_max(uv_min, uv_max),
-                                Color32::WHITE,
-                            );
-                            ui.painter().add(Shape::mesh(mesh));
-                        } else {
-                            // Fallback: draw placeholder
-                            ui.painter().rect_filled(rect, 0.0, Color32::from_gray(60));
-                            ui.painter().text(
-                                rect.center(),
-                                egui::Align2::CENTER_CENTER,
-                                format!("{}", virtual_index),
-                                egui::FontId::default(),
-                                Color32::WHITE,
-                            );
-                        }
-
-                        // Draw terrain overlays at all assigned positions
-                        if let Some(st) = set_type {
-                            if let Some(terrain_data) = editor_state.selected_terrain_set
-                                .and_then(|ts_id| project.autotile_config.get_terrain_set(ts_id))
-                                .and_then(|ts| ts.get_tile_terrain(virtual_index))
-                            {
-                                draw_terrain_overlays(
-                                    ui.painter(),
-                                    rect,
-                                    st,
-                                    terrain_data,
-                                    &terrain_colors,
-                                );
-                            }
-
-                            // Draw center indicator for Mixed terrain (shows it's not clickable)
-                            if st == TerrainSetType::Mixed {
-                                draw_mixed_center_indicator(ui.painter(), rect);
-                            }
-                        }
-
-                        // Draw thin border to show tile boundaries
-                        ui.painter().rect_stroke(
+                        // Draw texture using mesh
+                        let mut mesh = egui::Mesh::with_texture(tex_id);
+                        mesh.add_rect_with_uv(
                             rect,
-                            0.0,
-                            egui::Stroke::new(1.0, Color32::from_gray(80)),
-                            egui::StrokeKind::Inside,
+                            egui::Rect::from_min_max(uv_min, uv_max),
+                            Color32::WHITE,
                         );
+                        ui.painter().add(Shape::mesh(mesh));
+                    } else {
+                        // Fallback: draw placeholder
+                        ui.painter().rect_filled(rect, 0.0, Color32::from_gray(60));
+                        ui.painter().text(
+                            rect.center(),
+                            egui::Align2::CENTER_CENTER,
+                            format!("{}", virtual_index),
+                            egui::FontId::default(),
+                            Color32::WHITE,
+                        );
+                    }
 
-                        // Handle click or drag - detect which zone was clicked
-                        // Drag support allows painting over multiple tiles
-                        if response.clicked() || response.dragged() {
-                            if let Some(click_pos) = response.interact_pointer_pos() {
-                                let local_x = click_pos.x - rect.left();
-                                let local_y = click_pos.y - rect.top();
+                    // Draw terrain overlays at all assigned positions
+                    if let Some(st) = set_type {
+                        if let Some(terrain_data) = editor_state
+                            .selected_terrain_set
+                            .and_then(|ts_id| project.autotile_config.get_terrain_set(ts_id))
+                            .and_then(|ts| ts.get_tile_terrain(virtual_index))
+                        {
+                            draw_terrain_overlays(
+                                ui.painter(),
+                                rect,
+                                st,
+                                terrain_data,
+                                &terrain_colors,
+                            );
+                        }
 
-                                if let Some(st) = set_type {
-                                    if let Some(position) = detect_click_zone(
-                                        local_x,
-                                        local_y,
-                                        display_size.x,
-                                        st,
-                                    ) {
-                                        handle_terrain_position_click(
-                                            editor_state,
-                                            project,
-                                            virtual_index,
+                        // Draw center indicator for Mixed terrain (shows it's not clickable)
+                        if st == TerrainSetType::Mixed {
+                            draw_mixed_center_indicator(ui.painter(), rect);
+                        }
+                    }
+
+                    // Draw thin border to show tile boundaries
+                    ui.painter().rect_stroke(
+                        rect,
+                        0.0,
+                        egui::Stroke::new(1.0, Color32::from_gray(80)),
+                        egui::StrokeKind::Inside,
+                    );
+                }
+            }
+
+            // Handle zone-based interaction (Tiled-style per-tile zones)
+            if let Some(st) = set_type {
+                let effective_tile_size = tile_display_size + spacing;
+
+                // Helper to convert pointer position to tile + local coordinates
+                let get_tile_and_local = |pos: egui::Pos2| -> Option<(u32, f32, f32, egui::Rect)> {
+                    if !grid_rect.contains(pos) {
+                        return None;
+                    }
+                    let rel_x = pos.x - grid_origin.x;
+                    let rel_y = pos.y - grid_origin.y;
+
+                    // Find which tile cell (accounting for spacing)
+                    let col = (rel_x / effective_tile_size).floor() as i32;
+                    let row = (rel_y / effective_tile_size).floor() as i32;
+
+                    if col < 0 || col >= image.columns as i32 || row < 0 || row >= image.rows as i32 {
+                        return None;
+                    }
+
+                    let col = col as u32;
+                    let row = row as u32;
+
+                    // Calculate tile rect
+                    let tile_x = grid_origin.x + col as f32 * effective_tile_size;
+                    let tile_y = grid_origin.y + row as f32 * effective_tile_size;
+                    let tile_rect = egui::Rect::from_min_size(
+                        egui::pos2(tile_x, tile_y),
+                        egui::vec2(tile_display_size, tile_display_size),
+                    );
+
+                    // Only consider clicks within the actual tile (not spacing)
+                    if !tile_rect.contains(pos) {
+                        return None;
+                    }
+
+                    // Calculate local coordinates (0.0 to 1.0) within tile
+                    let local_x = (pos.x - tile_rect.left()) / tile_display_size;
+                    let local_y = (pos.y - tile_rect.top()) / tile_display_size;
+
+                    let tile_index = image_virtual_offset + row * image.columns + col;
+                    Some((tile_index, local_x, local_y, tile_rect))
+                };
+
+                // Draw hover highlight on the zone under cursor
+                if let Some(hover_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                    if let Some((tile_index, local_x, local_y, tile_rect)) = get_tile_and_local(hover_pos) {
+                        if let Some(position) = get_tile_zone(local_x, local_y, st) {
+                            // Draw hover highlight
+                            draw_zone_hover_highlight(ui.painter(), tile_rect, position, st);
+
+                            // Show tooltip
+                            let zone_name = match st {
+                                TerrainSetType::Corner => match position {
+                                    0 => "Top-Left",
+                                    1 => "Top-Right",
+                                    2 => "Bottom-Left",
+                                    3 => "Bottom-Right",
+                                    _ => "Unknown",
+                                },
+                                TerrainSetType::Edge => match position {
+                                    0 => "Top",
+                                    1 => "Right",
+                                    2 => "Bottom",
+                                    3 => "Left",
+                                    _ => "Unknown",
+                                },
+                                TerrainSetType::Mixed => match position {
+                                    0 => "Top-Left",
+                                    1 => "Top",
+                                    2 => "Top-Right",
+                                    3 => "Right",
+                                    4 => "Bottom-Right",
+                                    5 => "Bottom",
+                                    6 => "Bottom-Left",
+                                    7 => "Left",
+                                    _ => "Unknown",
+                                },
+                            };
+                            let tooltip = format!(
+                                "Tile {} - {} zone\nClick to paint\nCtrl+click to clear",
+                                tile_index, zone_name
+                            );
+                            grid_response.clone().on_hover_text(tooltip);
+                        }
+                    }
+                }
+
+                // Handle clicks - paint to single tile's zone
+                if grid_response.clicked() || grid_response.dragged() {
+                    if let Some(click_pos) = grid_response.interact_pointer_pos() {
+                        if let Some((tile_index, local_x, local_y, _tile_rect)) = get_tile_and_local(click_pos) {
+                            if let Some(position) = get_tile_zone(local_x, local_y, st) {
+                                let ctrl_held = ui.input(|i| i.modifiers.ctrl);
+                                let terrain_idx = if ctrl_held {
+                                    None // Erase
+                                } else {
+                                    editor_state
+                                        .tileset_editor_state
+                                        .selected_terrain_for_assignment
+                                };
+
+                                // Paint to this tile's zone only
+                                if let Some(ts_id) = editor_state.selected_terrain_set {
+                                    if let Some(terrain_set) =
+                                        project.autotile_config.get_terrain_set_mut(ts_id)
+                                    {
+                                        paint_terrain_zone(
+                                            terrain_set,
+                                            tile_index,
                                             position,
-                                            ui.input(|i| i.modifiers.ctrl),
+                                            terrain_idx,
                                         );
+                                        project.mark_dirty();
                                     }
                                 }
                             }
                         }
-
-                        // Build tooltip with terrain info for all positions
-                        let tooltip_text = build_tile_tooltip(
-                            virtual_index,
-                            set_type,
-                            editor_state,
-                            project,
-                        );
-                        response.on_hover_text(tooltip_text);
                     }
-                });
+                }
             }
         });
 
         virtual_offset += image.tile_count();
     }
-}
-
-/// Build tooltip text showing terrain assignments at all positions
-fn build_tile_tooltip(
-    tile_index: u32,
-    set_type: Option<TerrainSetType>,
-    editor_state: &EditorState,
-    project: &Project,
-) -> String {
-    let mut text = format!("Tile {}", tile_index);
-
-    if let Some(st) = set_type {
-        if let Some(terrain_data) = editor_state.selected_terrain_set
-            .and_then(|ts_id| project.autotile_config.get_terrain_set(ts_id))
-            .and_then(|ts| ts.get_tile_terrain(tile_index))
-        {
-            text.push_str("\n\nTerrain assignments:");
-            let position_count = st.position_count();
-            for pos in 0..position_count {
-                let pos_name = st.position_name(pos);
-                let terrain_name = terrain_data.get(pos)
-                    .and_then(|idx| {
-                        editor_state.selected_terrain_set
-                            .and_then(|ts_id| project.autotile_config.get_terrain_set(ts_id))
-                            .and_then(|ts| ts.terrains.get(idx))
-                            .map(|t| t.name.as_str())
-                    })
-                    .unwrap_or("-");
-                text.push_str(&format!("\n  {}: {}", pos_name, terrain_name));
-            }
-        } else {
-            text.push_str("\n\nNo terrain assigned");
-        }
-    }
-
-    text.push_str("\n\nClick corner/edge to paint");
-    text.push_str("\nCtrl+click to clear");
-    text
-}
-
-/// Handle click on a specific terrain position within a tile (Tiled-style painting)
-fn handle_terrain_position_click(
-    editor_state: &mut EditorState,
-    project: &mut Project,
-    tile_index: u32,
-    position: usize,
-    ctrl_held: bool,
-) {
-    let Some(ts_id) = editor_state.selected_terrain_set else {
-        return;
-    };
-
-    // Get the terrain set mutably
-    let Some(terrain_set) = project.autotile_config.get_terrain_set_mut(ts_id) else {
-        return;
-    };
-
-    if ctrl_held {
-        // Clear terrain assignment at this position
-        terrain_set.set_tile_terrain(tile_index, position, None);
-    } else if let Some(terrain_idx) = editor_state.tileset_editor_state.selected_terrain_for_assignment {
-        // Set terrain assignment at this position
-        terrain_set.set_tile_terrain(tile_index, position, Some(terrain_idx));
-    }
-
-    project.mark_dirty();
 }
 
 fn render_tile_properties_tab(
@@ -741,7 +984,9 @@ fn render_tile_properties_tab(
     };
 
     // Clone tileset data to avoid borrow conflicts
-    let tileset_data = project.tilesets.iter()
+    let tileset_data = project
+        .tilesets
+        .iter()
         .find(|t| t.id == tileset_id)
         .map(|t| (t.tile_size, t.images.clone(), !t.images.is_empty()));
 
@@ -756,17 +1001,15 @@ fn render_tile_properties_tab(
                 if !has_images {
                     ui.label("No images in tileset");
                 } else {
-                    egui::ScrollArea::both()
-                        .max_height(400.0)
-                        .show(ui, |ui| {
-                            render_tile_selector_for_properties(
-                                ui,
-                                editor_state,
-                                tile_size,
-                                &images,
-                                cache,
-                            );
-                        });
+                    egui::ScrollArea::both().max_height(400.0).show(ui, |ui| {
+                        render_tile_selector_for_properties(
+                            ui,
+                            editor_state,
+                            tile_size,
+                            &images,
+                            cache,
+                        );
+                    });
                 }
             }
         });
@@ -777,7 +1020,10 @@ fn render_tile_properties_tab(
         ui.vertical(|ui| {
             ui.heading("Tile Properties");
 
-            if let Some(tile_idx) = editor_state.tileset_editor_state.selected_tile_for_properties {
+            if let Some(tile_idx) = editor_state
+                .tileset_editor_state
+                .selected_tile_for_properties
+            {
                 ui.label(format!("Editing Tile {}", tile_idx));
                 ui.separator();
 
@@ -793,7 +1039,8 @@ fn render_tile_properties_tab(
 
                 let mut collision = current_props.collision;
                 if ui.checkbox(&mut collision, "Has collision").changed() {
-                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                    {
                         tileset.set_tile_collision(tile_idx, collision);
                         project.mark_dirty();
                     }
@@ -801,8 +1048,13 @@ fn render_tile_properties_tab(
 
                 let mut one_way = current_props.one_way;
                 ui.add_enabled_ui(collision, |ui| {
-                    if ui.checkbox(&mut one_way, "One-way platform (collision from above only)").changed() {
-                        if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+                    if ui
+                        .checkbox(&mut one_way, "One-way platform (collision from above only)")
+                        .changed()
+                    {
+                        if let Some(tileset) =
+                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        {
                             let props = tileset.get_tile_properties_mut(tile_idx);
                             props.one_way = one_way;
                             project.mark_dirty();
@@ -819,7 +1071,8 @@ fn render_tile_properties_tab(
                 let mut enable_anim = has_anim;
 
                 if ui.checkbox(&mut enable_anim, "Enable animation").changed() {
-                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+                    if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                    {
                         let props = tileset.get_tile_properties_mut(tile_idx);
                         if enable_anim {
                             props.animation_frames = Some(vec![tile_idx]);
@@ -837,8 +1090,13 @@ fn render_tile_properties_tab(
                     let mut speed = current_props.animation_speed.unwrap_or(10.0);
                     ui.horizontal(|ui| {
                         ui.label("Speed (FPS):");
-                        if ui.add(egui::DragValue::new(&mut speed).range(0.1..=60.0)).changed() {
-                            if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+                        if ui
+                            .add(egui::DragValue::new(&mut speed).range(0.1..=60.0))
+                            .changed()
+                        {
+                            if let Some(tileset) =
+                                project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                            {
                                 let props = tileset.get_tile_properties_mut(tile_idx);
                                 props.animation_speed = Some(speed);
                                 project.mark_dirty();
@@ -873,7 +1131,6 @@ fn render_tile_properties_tab(
                     }
                 }
                 ui.small("(Custom property editing coming in future update)");
-
             } else {
                 ui.label("Click a tile on the left to edit its properties");
             }
@@ -913,29 +1170,41 @@ fn render_tile_selector_for_properties(
                     for col in 0..image.columns {
                         let local_index = row * image.columns + col;
                         let virtual_index = virtual_offset + local_index;
-                        let selected = editor_state.tileset_editor_state.selected_tile_for_properties == Some(virtual_index);
+                        let selected = editor_state
+                            .tileset_editor_state
+                            .selected_tile_for_properties
+                            == Some(virtual_index);
 
                         let response = if let Some(tex_id) = texture_id {
-                            let uv_min = egui::pos2(col as f32 * uv_tile_width, row as f32 * uv_tile_height);
-                            let uv_max = egui::pos2((col + 1) as f32 * uv_tile_width, (row + 1) as f32 * uv_tile_height);
+                            let uv_min =
+                                egui::pos2(col as f32 * uv_tile_width, row as f32 * uv_tile_height);
+                            let uv_max = egui::pos2(
+                                (col + 1) as f32 * uv_tile_width,
+                                (row + 1) as f32 * uv_tile_height,
+                            );
 
                             #[allow(deprecated)]
                             ui.add(
-                                egui::ImageButton::new(egui::load::SizedTexture::new(tex_id, display_size))
-                                    .uv(egui::Rect::from_min_max(uv_min, uv_max))
-                                    .selected(selected)
-                                    .rounding(0.0)
+                                egui::ImageButton::new(egui::load::SizedTexture::new(
+                                    tex_id,
+                                    display_size,
+                                ))
+                                .uv(egui::Rect::from_min_max(uv_min, uv_max))
+                                .selected(selected)
+                                .rounding(0.0),
                             )
                         } else {
                             ui.add(
                                 egui::Button::new(format!("{}", virtual_index))
                                     .min_size(display_size)
-                                    .selected(selected)
+                                    .selected(selected),
                             )
                         };
 
                         if response.clicked() {
-                            editor_state.tileset_editor_state.selected_tile_for_properties = Some(virtual_index);
+                            editor_state
+                                .tileset_editor_state
+                                .selected_tile_for_properties = Some(virtual_index);
                         }
 
                         response.on_hover_text(format!("Tile {}", virtual_index));

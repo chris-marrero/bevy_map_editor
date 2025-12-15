@@ -2,14 +2,16 @@
 //!
 //! Handles viewport input for various editing operations.
 
-use bevy::prelude::*;
 use bevy::input::mouse::MouseWheel;
+use bevy::prelude::*;
 use bevy_egui::EguiContexts;
 use bevy_map_autotile;
 use bevy_map_core::{EntityInstance, LayerData};
 use std::collections::HashMap;
 
-use crate::commands::{BatchTileCommand, CommandHistory, MoveEntityCommand, collect_tiles_in_region};
+use crate::commands::{
+    collect_tiles_in_region, BatchTileCommand, CommandHistory, MoveEntityCommand,
+};
 use crate::project::Project;
 use crate::render::RenderState;
 use crate::ui::{EditorTool, Selection, ToolMode};
@@ -23,11 +25,14 @@ impl Plugin for EditorToolsPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ViewportInputState>()
             .init_resource::<PaintStrokeTracker>()
-            .add_systems(Update, (
-                handle_viewport_input,
-                handle_zoom_input,
-                finalize_paint_stroke,
-            ));
+            .add_systems(
+                Update,
+                (
+                    handle_viewport_input,
+                    handle_zoom_input,
+                    finalize_paint_stroke,
+                ),
+            );
     }
 }
 
@@ -112,8 +117,12 @@ fn handle_viewport_input(
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
-    let Some(window) = windows.iter().next() else { return };
-    let Some((camera, camera_transform)) = camera_q.iter().next() else { return };
+    let Some(window) = windows.iter().next() else {
+        return;
+    };
+    let Some((camera, camera_transform)) = camera_q.iter().next() else {
+        return;
+    };
 
     let Some(cursor_position) = window.cursor_position() else {
         input_state.is_panning = false;
@@ -184,18 +193,27 @@ fn handle_viewport_input(
         || editor_state.show_dialogue_editor;
 
     // Determine if we're in rectangle mode for this tool
-    let is_rectangle_mode = editor_state.tool_mode == ToolMode::Rectangle
-        && editor_state.current_tool.supports_modes();
+    let is_rectangle_mode =
+        editor_state.tool_mode == ToolMode::Rectangle && editor_state.current_tool.supports_modes();
 
     // Handle painting/erasing/entity placement/selection with left mouse
     // Block entity/fill/select if pointer is over right panel or if modal editors are open
-    if mouse_buttons.just_pressed(MouseButton::Left) && !input_state.is_panning && !pointer_over_right_panel && !modal_editor_open {
+    if mouse_buttons.just_pressed(MouseButton::Left)
+        && !input_state.is_panning
+        && !pointer_over_right_panel
+        && !modal_editor_open
+    {
         match editor_state.current_tool {
             EditorTool::Entity => {
                 place_entity(&mut editor_state, &mut project, world_pos);
             }
             EditorTool::Fill => {
-                fill_area(&mut editor_state, &mut project, &mut render_state, world_pos);
+                fill_area(
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    world_pos,
+                );
             }
             // Select tool - check for move operations first, then entity click, then marquee selection
             EditorTool::Select => {
@@ -204,7 +222,8 @@ fn handle_viewport_input(
                     if let Selection::Entity(level_id, entity_id) = &editor_state.selection {
                         // Get the entity's current position for undo
                         if let Some(level) = project.levels.iter().find(|l| l.id == *level_id) {
-                            if let Some(entity) = level.entities.iter().find(|e| e.id == *entity_id) {
+                            if let Some(entity) = level.entities.iter().find(|e| e.id == *entity_id)
+                            {
                                 editor_state.is_moving = true;
                                 editor_state.move_drag_start = Some(world_pos);
                                 editor_state.entity_original_position = Some(entity.position);
@@ -225,7 +244,12 @@ fn handle_viewport_input(
 
                 // THIRD: Check if clicking on an entity (only on selected Object layer) to select it
                 if let Some(level_id) = editor_state.selected_level {
-                    if let Some(entity_id) = find_entity_at_position(world_pos, &project, level_id, editor_state.selected_layer) {
+                    if let Some(entity_id) = find_entity_at_position(
+                        world_pos,
+                        &project,
+                        level_id,
+                        editor_state.selected_layer,
+                    ) {
                         // Select the entity
                         editor_state.selection = Selection::Entity(level_id, entity_id);
                         // Clear any tile selection
@@ -265,14 +289,33 @@ fn handle_viewport_input(
             // Fill based on the current tool
             match editor_state.current_tool {
                 EditorTool::Terrain => {
-                    fill_terrain_rectangle(&mut editor_state, &mut project, &mut render_state, &mut history, start_x, start_y, end_x, end_y);
+                    fill_terrain_rectangle(
+                        &mut editor_state,
+                        &mut project,
+                        &mut render_state,
+                        &mut history,
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                    );
                 }
                 EditorTool::Paint | EditorTool::Erase => {
-                    fill_rectangle(&mut editor_state, &mut project, &mut render_state, start_x, start_y, end_x, end_y);
+                    fill_rectangle(
+                        &mut editor_state,
+                        &mut project,
+                        &mut render_state,
+                        start_x,
+                        start_y,
+                        end_x,
+                        end_y,
+                    );
                 }
                 EditorTool::Select => {
                     // Finalize marquee selection
-                    if let (Some(level_id), Some(layer_idx)) = (editor_state.selected_level, editor_state.selected_layer) {
+                    if let (Some(level_id), Some(layer_idx)) =
+                        (editor_state.selected_level, editor_state.selected_layer)
+                    {
                         let additive = false;
 
                         // Normalize rectangle bounds
@@ -282,13 +325,7 @@ fn handle_viewport_input(
                         let max_y = start_y.max(end_y).max(0) as u32;
 
                         editor_state.tile_selection.select_rectangle(
-                            level_id,
-                            layer_idx,
-                            min_x,
-                            min_y,
-                            max_x,
-                            max_y,
-                            additive,
+                            level_id, layer_idx, min_x, min_y, max_x, max_y, additive,
                         );
                     }
                     editor_state.tile_selection.is_selecting = false;
@@ -309,7 +346,12 @@ fn handle_viewport_input(
         }
         // Finalize tile move
         else if editor_state.tile_move_original.is_some() {
-            finalize_tile_move(&mut editor_state, &mut project, &mut render_state, &mut history);
+            finalize_tile_move(
+                &mut editor_state,
+                &mut project,
+                &mut render_state,
+                &mut history,
+            );
         }
 
         // Reset all move state
@@ -321,7 +363,8 @@ fn handle_viewport_input(
     }
 
     // Handle move operation drag (update positions during move)
-    if mouse_buttons.pressed(MouseButton::Left) && editor_state.is_moving && !input_state.is_panning {
+    if mouse_buttons.pressed(MouseButton::Left) && editor_state.is_moving && !input_state.is_panning
+    {
         if let Some(start_pos) = editor_state.move_drag_start {
             let delta = world_pos - start_pos;
 
@@ -332,10 +375,7 @@ fn handle_viewport_input(
                     let entity_id = *entity_id;
 
                     if let Some(original_pos) = editor_state.entity_original_position {
-                        let mut new_pos = [
-                            original_pos[0] + delta.x,
-                            original_pos[1] + delta.y,
-                        ];
+                        let mut new_pos = [original_pos[0] + delta.x, original_pos[1] + delta.y];
 
                         // Apply snap-to-grid if enabled
                         if editor_state.snap_to_grid {
@@ -354,7 +394,9 @@ fn handle_viewport_input(
                             new_pos[1] = new_pos[1].clamp(0.0, level_height_px);
 
                             // Update entity position
-                            if let Some(entity) = level.entities.iter_mut().find(|e| e.id == entity_id) {
+                            if let Some(entity) =
+                                level.entities.iter_mut().find(|e| e.id == entity_id)
+                            {
                                 entity.position = new_pos;
                             }
                         }
@@ -378,15 +420,23 @@ fn handle_viewport_input(
         && editor_state.current_tool == EditorTool::Terrain
     {
         // Only recalculate if we have terrain set info to compute the paint target
-        if let (Some(terrain_set_id), Some(_)) = (editor_state.selected_terrain_set, editor_state.selected_terrain_in_set) {
+        if let (Some(terrain_set_id), Some(_)) = (
+            editor_state.selected_terrain_set,
+            editor_state.selected_terrain_in_set,
+        ) {
             if let Some(terrain_set) = project.autotile_config.get_terrain_set(terrain_set_id) {
-                let tile_size = project.tilesets.iter()
+                let tile_size = project
+                    .tilesets
+                    .iter()
                     .find(|t| t.id == terrain_set.tileset_id)
                     .map(|t| t.tile_size as f32)
                     .unwrap_or(32.0);
 
                 let paint_target = bevy_map_autotile::get_paint_target(
-                    world_pos.x, world_pos.y, tile_size, terrain_set.set_type,
+                    world_pos.x,
+                    world_pos.y,
+                    tile_size,
+                    terrain_set.set_type,
                 );
 
                 // Only recalculate preview if target changed
@@ -411,13 +461,32 @@ fn handle_viewport_input(
     if mouse_buttons.pressed(MouseButton::Left) && !input_state.is_panning && !is_rectangle_mode {
         match editor_state.current_tool {
             EditorTool::Paint => {
-                paint_tile(&mut editor_state, &mut project, &mut render_state, &mut stroke_tracker, world_pos);
+                paint_tile(
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    &mut stroke_tracker,
+                    world_pos,
+                );
             }
             EditorTool::Terrain => {
-                paint_terrain_tile(&mut editor_state, &mut project, &mut render_state, &mut input_state, &mut stroke_tracker, world_pos);
+                paint_terrain_tile(
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    &mut input_state,
+                    &mut stroke_tracker,
+                    world_pos,
+                );
             }
             EditorTool::Erase => {
-                erase_tile(&mut editor_state, &mut project, &mut render_state, &mut stroke_tracker, world_pos);
+                erase_tile(
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    &mut stroke_tracker,
+                    world_pos,
+                );
             }
             _ => {}
         }
@@ -437,13 +506,15 @@ fn get_tile_size(editor_state: &EditorState, project: &Project) -> f32 {
 
     let level = level_id.and_then(|id| project.levels.iter().find(|l| l.id == id));
     let layer_tileset_id = level.and_then(|l| {
-        layer_idx.and_then(|idx| l.layers.get(idx)).and_then(|layer| {
-            if let LayerData::Tiles { tileset_id, .. } = &layer.data {
-                Some(*tileset_id)
-            } else {
-                None
-            }
-        })
+        layer_idx
+            .and_then(|idx| l.layers.get(idx))
+            .and_then(|layer| {
+                if let LayerData::Tiles { tileset_id, .. } = &layer.data {
+                    Some(*tileset_id)
+                } else {
+                    None
+                }
+            })
     });
 
     layer_tileset_id
@@ -495,7 +566,8 @@ fn get_layer_tileset_id(layer: &bevy_map_core::Layer) -> Option<uuid::Uuid> {
 
 /// Check if the selected layer is a Tile layer (returns false for Object layers)
 fn is_tile_layer(project: &Project, level_id: uuid::Uuid, layer_idx: usize) -> bool {
-    project.get_level(level_id)
+    project
+        .get_level(level_id)
         .and_then(|level| level.layers.get(layer_idx))
         .map(|layer| matches!(&layer.data, LayerData::Tiles { .. }))
         .unwrap_or(false)
@@ -547,8 +619,10 @@ fn find_entity_at_position(
         let min = entity_pos - Vec2::splat(half_size);
         let max = entity_pos + Vec2::splat(half_size);
 
-        if world_pos.x >= min.x && world_pos.x <= max.x
-            && world_pos.y >= min.y && world_pos.y <= max.y
+        if world_pos.x >= min.x
+            && world_pos.x <= max.x
+            && world_pos.y >= min.y
+            && world_pos.y <= max.y
         {
             return Some(entity.id);
         }
@@ -580,8 +654,10 @@ fn is_click_on_selected_entity(
                 let min = entity_pos - Vec2::splat(half_size);
                 let max = entity_pos + Vec2::splat(half_size);
 
-                return world_pos.x >= min.x && world_pos.x <= max.x
-                    && world_pos.y >= min.y && world_pos.y <= max.y;
+                return world_pos.x >= min.x
+                    && world_pos.x <= max.x
+                    && world_pos.y >= min.y
+                    && world_pos.y <= max.y;
             }
         }
     }
@@ -589,11 +665,7 @@ fn is_click_on_selected_entity(
 }
 
 /// Check if click is within current tile selection
-fn is_click_on_tile_selection(
-    world_pos: Vec2,
-    editor_state: &EditorState,
-    tile_size: f32,
-) -> bool {
+fn is_click_on_tile_selection(world_pos: Vec2, editor_state: &EditorState, tile_size: f32) -> bool {
     if editor_state.tile_selection.tiles.is_empty() {
         return false;
     }
@@ -613,19 +685,27 @@ fn is_click_on_tile_selection(
         None => return false,
     };
 
-    editor_state.tile_selection.tiles.contains(&(level_id, layer_idx, tile_x, tile_y))
+    editor_state
+        .tile_selection
+        .tiles
+        .contains(&(level_id, layer_idx, tile_x, tile_y))
 }
 
 /// Capture tile data for move operation
-fn capture_tile_selection_for_move(
-    editor_state: &mut EditorState,
-    project: &Project,
-) {
-    let Some(level_id) = editor_state.tile_selection.level_id else { return };
-    let Some(layer_idx) = editor_state.tile_selection.layer_idx else { return };
+fn capture_tile_selection_for_move(editor_state: &mut EditorState, project: &Project) {
+    let Some(level_id) = editor_state.tile_selection.level_id else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.tile_selection.layer_idx else {
+        return;
+    };
 
-    let Some(level) = project.levels.iter().find(|l| l.id == level_id) else { return };
-    let Some(layer) = level.layers.get(layer_idx) else { return };
+    let Some(level) = project.levels.iter().find(|l| l.id == level_id) else {
+        return;
+    };
+    let Some(layer) = level.layers.get(layer_idx) else {
+        return;
+    };
 
     let tiles = if let LayerData::Tiles { tiles, .. } = &layer.data {
         tiles
@@ -651,14 +731,20 @@ fn finalize_entity_move(
     project: &mut Project,
     history: &mut CommandHistory,
 ) {
-    let Some(original_pos) = editor_state.entity_original_position else { return };
+    let Some(original_pos) = editor_state.entity_original_position else {
+        return;
+    };
 
     if let Selection::Entity(level_id, entity_id) = &editor_state.selection {
         let level_id = *level_id;
         let entity_id = *entity_id;
 
-        let Some(level) = project.get_level(level_id) else { return };
-        let Some(entity) = level.entities.iter().find(|e| e.id == entity_id) else { return };
+        let Some(level) = project.get_level(level_id) else {
+            return;
+        };
+        let Some(entity) = level.entities.iter().find(|e| e.id == entity_id) else {
+            return;
+        };
         let new_pos = entity.position;
 
         // Skip if no change
@@ -680,18 +766,28 @@ fn finalize_tile_move(
     render_state: &mut RenderState,
     history: &mut CommandHistory,
 ) {
-    let Some(original_tiles) = editor_state.tile_move_original.take() else { return };
-    let Some((offset_x, offset_y)) = editor_state.tile_move_offset else { return };
+    let Some(original_tiles) = editor_state.tile_move_original.take() else {
+        return;
+    };
+    let Some((offset_x, offset_y)) = editor_state.tile_move_offset else {
+        return;
+    };
 
     // Skip if no movement
     if offset_x == 0 && offset_y == 0 {
         return;
     }
 
-    let Some(level_id) = editor_state.tile_selection.level_id else { return };
-    let Some(layer_idx) = editor_state.tile_selection.layer_idx else { return };
+    let Some(level_id) = editor_state.tile_selection.level_id else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.tile_selection.layer_idx else {
+        return;
+    };
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     let level_width = level.width;
     let level_height = level.height;
 
@@ -711,7 +807,8 @@ fn finalize_tile_move(
         let dest_x = *x as i32 + offset_x;
         let dest_y = *y as i32 + offset_y;
 
-        if dest_x >= 0 && dest_y >= 0 && dest_x < level_width as i32 && dest_y < level_height as i32 {
+        if dest_x >= 0 && dest_y >= 0 && dest_x < level_width as i32 && dest_y < level_height as i32
+        {
             let dest_x = dest_x as u32;
             let dest_y = dest_y as u32;
 
@@ -743,12 +840,7 @@ fn finalize_tile_move(
             inverse_changes.insert((*x, *y), (*new_tile, *old_tile));
         }
 
-        let command = BatchTileCommand::new(
-            level_id,
-            layer_idx,
-            inverse_changes,
-            "Move Tiles",
-        );
+        let command = BatchTileCommand::new(level_id, layer_idx, inverse_changes, "Move Tiles");
         history.push_undo(Box::new(command));
     }
 
@@ -757,10 +849,7 @@ fn finalize_tile_move(
 }
 
 /// Cancel move operation and restore original state
-fn cancel_move_operation(
-    editor_state: &mut EditorState,
-    project: &mut Project,
-) {
+fn cancel_move_operation(editor_state: &mut EditorState, project: &mut Project) {
     // Restore entity position if entity move was in progress
     if let Some(original_pos) = editor_state.entity_original_position {
         if let Selection::Entity(level_id, entity_id) = &editor_state.selection {
@@ -789,16 +878,28 @@ fn paint_tile(
     world_pos: Vec2,
 ) {
     // Need a selected level, layer, tile, and tileset
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
-    let Some(tile_index) = editor_state.selected_tile else { return };
-    let Some(selected_tileset) = editor_state.selected_tileset else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
+    let Some(tile_index) = editor_state.selected_tile else {
+        return;
+    };
+    let Some(selected_tileset) = editor_state.selected_tileset else {
+        return;
+    };
 
     // Can only paint tiles on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     // Get tile size from the selected tileset
-    let tile_size = project.tilesets.iter()
+    let tile_size = project
+        .tilesets
+        .iter()
         .find(|t| t.id == selected_tileset)
         .map(|t| t.tile_size as f32)
         .unwrap_or(32.0);
@@ -813,7 +914,9 @@ fn paint_tile(
     }
 
     // Validate coordinates
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     if tile_x < 0 || tile_y < 0 || tile_x >= level.width as i32 || tile_y >= level.height as i32 {
         return;
     }
@@ -822,7 +925,9 @@ fn paint_tile(
     let tile_y = tile_y as u32;
 
     // Check tileset compatibility
-    let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+    let (has_tiles, layer_tileset) = level
+        .layers
+        .get(layer_idx)
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
@@ -855,7 +960,9 @@ fn paint_tile(
     }
 
     if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
-        stroke_tracker.changes.insert((tile_x, tile_y), (old_tile, Some(tile_index)));
+        stroke_tracker
+            .changes
+            .insert((tile_x, tile_y), (old_tile, Some(tile_index)));
     } else {
         if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
             change.1 = Some(tile_index);
@@ -875,11 +982,17 @@ fn erase_tile(
     stroke_tracker: &mut PaintStrokeTracker,
     world_pos: Vec2,
 ) {
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
 
     // Can only erase tiles on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     let tile_size = get_tile_size(editor_state, project);
 
@@ -890,7 +1003,9 @@ fn erase_tile(
         return;
     }
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     if tile_x < 0 || tile_y < 0 || tile_x >= level.width as i32 || tile_y >= level.height as i32 {
         return;
     }
@@ -911,7 +1026,9 @@ fn erase_tile(
     }
 
     if !stroke_tracker.changes.contains_key(&(tile_x, tile_y)) {
-        stroke_tracker.changes.insert((tile_x, tile_y), (old_tile, None));
+        stroke_tracker
+            .changes
+            .insert((tile_x, tile_y), (old_tile, None));
     } else {
         if let Some(change) = stroke_tracker.changes.get_mut(&(tile_x, tile_y)) {
             change.1 = None;
@@ -924,21 +1041,27 @@ fn erase_tile(
 }
 
 /// Place an entity at the given world position
-fn place_entity(
-    editor_state: &mut EditorState,
-    project: &mut Project,
-    world_pos: Vec2,
-) {
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
+fn place_entity(editor_state: &mut EditorState, project: &mut Project, world_pos: Vec2) {
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
 
     // REQUIRE an entity type to be selected - don't place if none selected
-    let Some(type_name) = editor_state.selected_entity_type.clone() else { return };
+    let Some(type_name) = editor_state.selected_entity_type.clone() else {
+        return;
+    };
 
     // REQUIRE selected layer to be an Object layer
     {
-        let Some(level) = project.get_level(level_id) else { return };
-        let Some(layer) = level.layers.get(layer_idx) else { return };
+        let Some(level) = project.get_level(level_id) else {
+            return;
+        };
+        let Some(layer) = level.layers.get(layer_idx) else {
+            return;
+        };
         if !matches!(&layer.data, LayerData::Objects { .. }) {
             return; // Can't place entities on tile layers
         }
@@ -961,12 +1084,16 @@ fn place_entity(
 
     // Bounds check - entity must be within level grid (check AFTER snapping)
     {
-        let Some(level) = project.get_level(level_id) else { return };
+        let Some(level) = project.get_level(level_id) else {
+            return;
+        };
         let level_width_px = level.width as f32 * tile_size;
         let level_height_px = level.height as f32 * tile_size;
 
-        if final_pos.x < 0.0 || final_pos.y < 0.0
-            || final_pos.x >= level_width_px || final_pos.y >= level_height_px
+        if final_pos.x < 0.0
+            || final_pos.y < 0.0
+            || final_pos.x >= level_width_px
+            || final_pos.y >= level_height_px
         {
             return; // Can't place outside level bounds
         }
@@ -990,7 +1117,9 @@ fn place_entity(
 
     let entity_id = entity.id;
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     level.add_entity(entity);
 
     // Add entity UUID to the Object layer's entities list
@@ -1015,16 +1144,24 @@ fn fill_rectangle(
     end_x: i32,
     end_y: i32,
 ) {
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
 
     // Can only fill tiles on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     let tile_index = editor_state.selected_tile;
     let selected_tileset = editor_state.selected_tileset;
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     let level_width = level.width as i32;
     let level_height = level.height as i32;
 
@@ -1034,7 +1171,9 @@ fn fill_rectangle(
     let max_y = start_y.max(end_y).min(level_height - 1);
 
     if let (Some(tile_idx), Some(sel_tileset)) = (tile_index, selected_tileset) {
-        let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+        let (has_tiles, layer_tileset) = level
+            .layers
+            .get(layer_idx)
             .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
             .unwrap_or((false, None));
 
@@ -1074,22 +1213,35 @@ fn fill_area(
     render_state: &mut RenderState,
     world_pos: Vec2,
 ) {
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
-    let Some(tile_index) = editor_state.selected_tile else { return };
-    let Some(selected_tileset) = editor_state.selected_tileset else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
+    let Some(tile_index) = editor_state.selected_tile else {
+        return;
+    };
+    let Some(selected_tileset) = editor_state.selected_tileset else {
+        return;
+    };
 
     // Can only fill tiles on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     let tile_size = get_tile_size(editor_state, project);
 
     let start_x = (world_pos.x / tile_size).floor() as i32;
     let start_y = (world_pos.y / tile_size).floor() as i32;
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
 
-    if start_x < 0 || start_y < 0 || start_x >= level.width as i32 || start_y >= level.height as i32 {
+    if start_x < 0 || start_y < 0 || start_x >= level.width as i32 || start_y >= level.height as i32
+    {
         return;
     }
 
@@ -1099,7 +1251,9 @@ fn fill_area(
         return;
     }
 
-    let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+    let (has_tiles, layer_tileset) = level
+        .layers
+        .get(layer_idx)
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
@@ -1163,19 +1317,44 @@ fn paint_terrain_tile(
     // Note: Preview is calculated separately in handle_viewport_input
     // to continue showing during drag operations
 
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
 
     // Can only paint terrain on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     // Check for Tiled-style terrain sets
     if let Some(terrain_set_id) = editor_state.selected_terrain_set {
-        paint_terrain_set_tile(editor_state, project, render_state, input_state, stroke_tracker, world_pos, level_id, layer_idx, terrain_set_id);
+        paint_terrain_set_tile(
+            editor_state,
+            project,
+            render_state,
+            input_state,
+            stroke_tracker,
+            world_pos,
+            level_id,
+            layer_idx,
+            terrain_set_id,
+        );
     }
     // Finally check for legacy 47-tile terrains
     else if let Some(terrain_id) = editor_state.selected_terrain {
-        paint_legacy_terrain_tile(editor_state, project, render_state, stroke_tracker, world_pos, level_id, layer_idx, terrain_id);
+        paint_legacy_terrain_tile(
+            editor_state,
+            project,
+            render_state,
+            stroke_tracker,
+            world_pos,
+            level_id,
+            layer_idx,
+            terrain_id,
+        );
     }
 }
 
@@ -1221,7 +1400,9 @@ fn paint_terrain_set_tile(
     layer_idx: usize,
     terrain_set_id: uuid::Uuid,
 ) {
-    let Some(terrain_idx) = editor_state.selected_terrain_in_set else { return };
+    let Some(terrain_idx) = editor_state.selected_terrain_in_set else {
+        return;
+    };
 
     let terrain_set = match project.autotile_config.get_terrain_set(terrain_set_id) {
         Some(ts) => ts.clone(),
@@ -1229,7 +1410,9 @@ fn paint_terrain_set_tile(
     };
     let selected_tileset = terrain_set.tileset_id;
 
-    let tile_size = project.tilesets.iter()
+    let tile_size = project
+        .tilesets
+        .iter()
         .find(|t| t.id == selected_tileset)
         .map(|t| t.tile_size as f32)
         .unwrap_or(32.0);
@@ -1260,11 +1443,15 @@ fn paint_terrain_set_tile(
         return;
     }
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     let level_width = level.width;
     let level_height = level.height;
 
-    let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+    let (has_tiles, layer_tileset) = level
+        .layers
+        .get(layer_idx)
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
@@ -1306,12 +1493,19 @@ fn paint_terrain_set_tile(
     for paint_target in &new_targets {
         // Calculate center coordinates for snapshot region
         let (center_x, center_y): (i32, i32) = match paint_target {
-            bevy_map_autotile::PaintTarget::Corner { corner_x, corner_y } => (*corner_x as i32, *corner_y as i32),
-            bevy_map_autotile::PaintTarget::HorizontalEdge { tile_x, edge_y } => (*tile_x as i32, *edge_y as i32),
-            bevy_map_autotile::PaintTarget::VerticalEdge { edge_x, tile_y } => (*edge_x as i32, *tile_y as i32),
+            bevy_map_autotile::PaintTarget::Corner { corner_x, corner_y } => {
+                (*corner_x as i32, *corner_y as i32)
+            }
+            bevy_map_autotile::PaintTarget::HorizontalEdge { tile_x, edge_y } => {
+                (*tile_x as i32, *edge_y as i32)
+            }
+            bevy_map_autotile::PaintTarget::VerticalEdge { edge_x, tile_y } => {
+                (*edge_x as i32, *tile_y as i32)
+            }
         };
 
-        let snapshot_region = capture_tile_region(tiles, level_width, level_height, center_x, center_y, 2);
+        let snapshot_region =
+            capture_tile_region(tiles, level_width, level_height, center_x, center_y, 2);
 
         bevy_map_autotile::paint_terrain_at_target(
             tiles,
@@ -1338,7 +1532,9 @@ fn paint_terrain_set_tile(
         }
 
         // Mark this target as painted for deduplication
-        input_state.painted_targets_this_stroke.insert(*paint_target);
+        input_state
+            .painted_targets_this_stroke
+            .insert(*paint_target);
     }
 
     project.mark_dirty();
@@ -1367,7 +1563,9 @@ fn paint_legacy_terrain_tile(
 
     let selected_tileset = terrain.tileset_id;
 
-    let tile_size = project.tilesets.iter()
+    let tile_size = project
+        .tilesets
+        .iter()
         .find(|t| t.id == selected_tileset)
         .map(|t| t.tile_size as f32)
         .unwrap_or(32.0);
@@ -1379,7 +1577,9 @@ fn paint_legacy_terrain_tile(
         return;
     }
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     if tile_x < 0 || tile_y < 0 || tile_x >= level.width as i32 || tile_y >= level.height as i32 {
         return;
     }
@@ -1387,7 +1587,9 @@ fn paint_legacy_terrain_tile(
     let tile_x_u32 = tile_x as u32;
     let tile_y_u32 = tile_y as u32;
 
-    let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+    let (has_tiles, layer_tileset) = level
+        .layers
+        .get(layer_idx)
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
@@ -1408,7 +1610,8 @@ fn paint_legacy_terrain_tile(
 
     if let Some(layer) = level.layers.get_mut(layer_idx) {
         if let LayerData::Tiles { tiles, .. } = &mut layer.data {
-            let snapshot_region = capture_tile_region(tiles, level_width, level_height, tile_x, tile_y, 1);
+            let snapshot_region =
+                capture_tile_region(tiles, level_width, level_height, tile_x, tile_y, 1);
 
             let first_tile = terrain.base_tile.saturating_sub(46);
             let last_tile = terrain.base_tile;
@@ -1470,13 +1673,23 @@ fn fill_terrain_rectangle(
     end_x: i32,
     end_y: i32,
 ) {
-    let Some(level_id) = editor_state.selected_level else { return };
-    let Some(layer_idx) = editor_state.selected_layer else { return };
-    let Some(terrain_set_id) = editor_state.selected_terrain_set else { return };
-    let Some(terrain_idx) = editor_state.selected_terrain_in_set else { return };
+    let Some(level_id) = editor_state.selected_level else {
+        return;
+    };
+    let Some(layer_idx) = editor_state.selected_layer else {
+        return;
+    };
+    let Some(terrain_set_id) = editor_state.selected_terrain_set else {
+        return;
+    };
+    let Some(terrain_idx) = editor_state.selected_terrain_in_set else {
+        return;
+    };
 
     // Can only fill terrain on Tile layers
-    if !is_tile_layer(project, level_id, layer_idx) { return; }
+    if !is_tile_layer(project, level_id, layer_idx) {
+        return;
+    }
 
     let terrain_set = match project.autotile_config.get_terrain_set(terrain_set_id) {
         Some(ts) => ts.clone(),
@@ -1484,7 +1697,9 @@ fn fill_terrain_rectangle(
     };
     let selected_tileset = terrain_set.tileset_id;
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
     let level_width = level.width as i32;
     let level_height = level.height as i32;
 
@@ -1499,13 +1714,22 @@ fn fill_terrain_rectangle(
     let update_max_y = (max_y + 1).min(level_height - 1);
 
     let before_tiles = collect_tiles_in_region(
-        project, level_id, layer_idx,
-        update_min_x, update_max_x, update_min_y, update_max_y,
+        project,
+        level_id,
+        layer_idx,
+        update_min_x,
+        update_max_x,
+        update_min_y,
+        update_max_y,
     );
 
-    let Some(level) = project.get_level_mut(level_id) else { return };
+    let Some(level) = project.get_level_mut(level_id) else {
+        return;
+    };
 
-    let (has_tiles, layer_tileset) = level.layers.get(layer_idx)
+    let (has_tiles, layer_tileset) = level
+        .layers
+        .get(layer_idx)
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
@@ -1557,8 +1781,13 @@ fn fill_terrain_rectangle(
             let is_at_edge = x == min_x || x == max_x || y == min_y || y == max_y;
             if is_at_edge {
                 bevy_map_autotile::update_tile_with_neighbors(
-                    tiles, level_width, level_height,
-                    x, y, &terrain_set, terrain_idx,
+                    tiles,
+                    level_width,
+                    level_height,
+                    x,
+                    y,
+                    &terrain_set,
+                    terrain_idx,
                 );
             }
         }
@@ -1584,8 +1813,13 @@ fn fill_terrain_rectangle(
                 if let Some(tile_data) = terrain_set.get_tile_terrain(tile) {
                     if let Some(primary_terrain) = tile_data.terrains.iter().find_map(|t| *t) {
                         bevy_map_autotile::update_tile_with_neighbors(
-                            tiles, level_width, level_height,
-                            x, y, &terrain_set, primary_terrain,
+                            tiles,
+                            level_width,
+                            level_height,
+                            x,
+                            y,
+                            &terrain_set,
+                            primary_terrain,
                         );
                     }
                 }
@@ -1594,8 +1828,13 @@ fn fill_terrain_rectangle(
     }
 
     let after_tiles = collect_tiles_in_region(
-        project, level_id, layer_idx,
-        update_min_x, update_max_x, update_min_y, update_max_y,
+        project,
+        level_id,
+        layer_idx,
+        update_min_x,
+        update_max_x,
+        update_min_y,
+        update_max_y,
     );
 
     let command = BatchTileCommand::from_diff(
@@ -1638,7 +1877,9 @@ fn finalize_paint_stroke(
 
     if !editor_state.is_painting && !mouse_buttons.pressed(MouseButton::Left) {
         if !stroke_tracker.changes.is_empty() {
-            if let (Some(level_id), Some(layer_idx)) = (stroke_tracker.level_id, stroke_tracker.layer_idx) {
+            if let (Some(level_id), Some(layer_idx)) =
+                (stroke_tracker.level_id, stroke_tracker.layer_idx)
+            {
                 let mut inverse_changes = HashMap::new();
                 for ((x, y), (old_tile, new_tile)) in &stroke_tracker.changes {
                     inverse_changes.insert((*x, *y), (*new_tile, *old_tile));
@@ -1664,11 +1905,7 @@ fn finalize_paint_stroke(
 }
 
 /// Calculate terrain preview tiles for the current mouse position
-fn calculate_terrain_preview(
-    editor_state: &mut EditorState,
-    project: &Project,
-    world_pos: Vec2,
-) {
+fn calculate_terrain_preview(editor_state: &mut EditorState, project: &Project, world_pos: Vec2) {
     let Some(level_id) = editor_state.selected_level else {
         editor_state.terrain_preview.active = false;
         return;
@@ -1694,7 +1931,9 @@ fn calculate_terrain_preview(
     };
 
     let tileset_id = terrain_set.tileset_id;
-    let tile_size = project.tilesets.iter()
+    let tile_size = project
+        .tilesets
+        .iter()
         .find(|t| t.id == tileset_id)
         .map(|t| t.tile_size as f32)
         .unwrap_or(32.0);

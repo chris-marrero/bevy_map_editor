@@ -104,7 +104,10 @@ impl AssetsBasePath {
 
     /// Convert an absolute path to a path relative to the assets folder.
     /// Returns an error if the file doesn't exist or is outside the assets directory.
-    pub fn to_relative_checked(&self, absolute_path: &std::path::Path) -> Result<PathBuf, PathError> {
+    pub fn to_relative_checked(
+        &self,
+        absolute_path: &std::path::Path,
+    ) -> Result<PathBuf, PathError> {
         // Normalize paths for comparison (handle Windows path quirks)
         let assets_path = self.0.canonicalize().unwrap_or_else(|_| self.0.clone());
         let file_path = absolute_path
@@ -117,7 +120,9 @@ impl AssetsBasePath {
             let relative_str = relative.to_string_lossy().replace('\\', "/");
             Ok(PathBuf::from(relative_str))
         } else {
-            Err(PathError::OutsideAssetsDirectory(absolute_path.to_path_buf()))
+            Err(PathError::OutsideAssetsDirectory(
+                absolute_path.to_path_buf(),
+            ))
         }
     }
 
@@ -139,8 +144,9 @@ impl AssetsBasePath {
         let dest_path = tiles_dir.join(filename);
 
         // Create tiles directory if it doesn't exist
-        std::fs::create_dir_all(&tiles_dir)
-            .map_err(|e| PathError::CopyFailed(format!("Failed to create tiles directory: {}", e)))?;
+        std::fs::create_dir_all(&tiles_dir).map_err(|e| {
+            PathError::CopyFailed(format!("Failed to create tiles directory: {}", e))
+        })?;
 
         // Check if file already exists at destination
         if dest_path.exists() {
@@ -149,11 +155,20 @@ impl AssetsBasePath {
             let dest_canon = dest_path.canonicalize().ok();
             if source_canon == dest_canon {
                 // Same file, just return the relative path
-                return Ok(PathBuf::from(format!("tiles/{}", filename.to_string_lossy())));
+                return Ok(PathBuf::from(format!(
+                    "tiles/{}",
+                    filename.to_string_lossy()
+                )));
             }
             // Different file exists - add a suffix to avoid overwriting
-            let stem = source_path.file_stem().unwrap_or_default().to_string_lossy();
-            let ext = source_path.extension().map(|e| e.to_string_lossy().to_string()).unwrap_or_default();
+            let stem = source_path
+                .file_stem()
+                .unwrap_or_default()
+                .to_string_lossy();
+            let ext = source_path
+                .extension()
+                .map(|e| e.to_string_lossy().to_string())
+                .unwrap_or_default();
             let unique_name = format!("{}_{}.{}", stem, uuid::Uuid::new_v4().simple(), ext);
             let dest_path = tiles_dir.join(&unique_name);
 
@@ -168,7 +183,10 @@ impl AssetsBasePath {
             .map_err(|e| PathError::CopyFailed(format!("Failed to copy file: {}", e)))?;
 
         // Return relative path with forward slashes
-        Ok(PathBuf::from(format!("tiles/{}", filename.to_string_lossy())))
+        Ok(PathBuf::from(format!(
+            "tiles/{}",
+            filename.to_string_lossy()
+        )))
     }
 }
 

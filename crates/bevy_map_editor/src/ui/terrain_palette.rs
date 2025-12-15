@@ -57,10 +57,16 @@ pub fn render_terrain_palette(
 
     // Tab for switching between tiles and terrains
     ui.horizontal(|ui| {
-        if ui.selectable_label(current_tab == PaletteTab::Tiles, "Tiles").clicked() {
+        if ui
+            .selectable_label(current_tab == PaletteTab::Tiles, "Tiles")
+            .clicked()
+        {
             editor_state.terrain_paint_state.is_terrain_mode = false;
         }
-        if ui.selectable_label(current_tab == PaletteTab::Terrains, "Terrains").clicked() {
+        if ui
+            .selectable_label(current_tab == PaletteTab::Terrains, "Terrains")
+            .clicked()
+        {
             editor_state.terrain_paint_state.is_terrain_mode = true;
         }
     });
@@ -84,7 +90,9 @@ fn render_terrain_brushes(ui: &mut egui::Ui, editor_state: &mut EditorState, pro
     };
 
     // Get terrain sets for this tileset
-    let terrain_sets: Vec<_> = project.autotile_config.terrain_sets
+    let terrain_sets: Vec<_> = project
+        .autotile_config
+        .terrain_sets
         .iter()
         .filter(|ts| ts.tileset_id == tileset_id)
         .collect();
@@ -96,7 +104,9 @@ fn render_terrain_brushes(ui: &mut egui::Ui, editor_state: &mut EditorState, pro
     }
 
     // Terrain set selector
-    let current_set_name = editor_state.terrain_paint_state.selected_terrain_set
+    let current_set_name = editor_state
+        .terrain_paint_state
+        .selected_terrain_set
         .and_then(|id| terrain_sets.iter().find(|ts| ts.id == id))
         .map(|ts| ts.name.as_str())
         .unwrap_or("(none)");
@@ -105,11 +115,14 @@ fn render_terrain_brushes(ui: &mut egui::Ui, editor_state: &mut EditorState, pro
         .selected_text(current_set_name)
         .show_ui(ui, |ui| {
             for ts in &terrain_sets {
-                if ui.selectable_value(
-                    &mut editor_state.terrain_paint_state.selected_terrain_set,
-                    Some(ts.id),
-                    &ts.name,
-                ).clicked() {
+                if ui
+                    .selectable_value(
+                        &mut editor_state.terrain_paint_state.selected_terrain_set,
+                        Some(ts.id),
+                        &ts.name,
+                    )
+                    .clicked()
+                {
                     // Update local paint state
                     editor_state.terrain_paint_state.selected_terrain_idx = None;
 
@@ -137,13 +150,15 @@ fn render_terrain_brushes(ui: &mut egui::Ui, editor_state: &mut EditorState, pro
                         (terrain.color.g * 255.0) as u8,
                         (terrain.color.b * 255.0) as u8,
                     );
-                    let (rect, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                    let (rect, _) =
+                        ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
                     ui.painter().rect_filled(rect, 0.0, color);
 
                     if ui.selectable_label(selected, &terrain.name).clicked() {
                         // Update local paint state
                         editor_state.terrain_paint_state.selected_terrain_idx = Some(idx);
-                        editor_state.terrain_paint_state.selected_terrain_set = Some(terrain_set.id);
+                        editor_state.terrain_paint_state.selected_terrain_set =
+                            Some(terrain_set.id);
 
                         // CRITICAL: Also update root EditorState fields that tools/mod.rs reads
                         editor_state.selected_terrain_set = Some(terrain_set.id);

@@ -40,8 +40,7 @@ pub enum SchemaError {
 
 /// Load a schema from a JSON file
 pub fn load_schema(path: &Path) -> Result<Schema, SchemaError> {
-    let content =
-        std::fs::read_to_string(path).map_err(|e| SchemaError::IoError(e.to_string()))?;
+    let content = std::fs::read_to_string(path).map_err(|e| SchemaError::IoError(e.to_string()))?;
 
     parse_schema(&content)
 }

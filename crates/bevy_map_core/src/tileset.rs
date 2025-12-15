@@ -31,7 +31,10 @@ impl TileProperties {
 
     /// Check if this tile has an animation
     pub fn has_animation(&self) -> bool {
-        self.animation_frames.as_ref().map(|f| f.len() > 1).unwrap_or(false)
+        self.animation_frames
+            .as_ref()
+            .map(|f| f.len() > 1)
+            .unwrap_or(false)
     }
 
     /// Set collision for this tile
@@ -197,12 +200,8 @@ impl Tileset {
     pub fn migrate_to_multi_image(&mut self) {
         if self.images.is_empty() {
             if let Some(path) = &self.path {
-                let image = TilesetImage::new(
-                    "Main".to_string(),
-                    path.clone(),
-                    self.columns,
-                    self.rows,
-                );
+                let image =
+                    TilesetImage::new("Main".to_string(), path.clone(), self.columns, self.rows);
                 self.images.push(image);
             }
         }

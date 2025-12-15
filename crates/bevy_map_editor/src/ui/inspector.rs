@@ -15,13 +15,13 @@ pub enum Selection {
     Layer(Uuid, usize), // level_id, layer_index
     Entity(Uuid, Uuid), // level_id, entity_id
     Tileset(Uuid),
-    DataType(String),    // type_name
+    DataType(String), // type_name
     DataInstance(Uuid),
-    SpriteSheet(Uuid),   // sprite sheet asset id
-    Dialogue(String),    // dialogue asset id
+    SpriteSheet(Uuid), // sprite sheet asset id
+    Dialogue(String),  // dialogue asset id
     // Multi-select variants
     MultipleDataInstances(Vec<Uuid>),
-    MultipleEntities(Vec<(Uuid, Uuid)>),  // Vec of (level_id, entity_id)
+    MultipleEntities(Vec<(Uuid, Uuid)>), // Vec of (level_id, entity_id)
 }
 
 /// Result from rendering the inspector
@@ -117,7 +117,12 @@ fn render_level_inspector(ui: &mut egui::Ui, level_id: Uuid, project: &mut Proje
     ui.label(format!("Entities: {}", level.entities.len()));
 }
 
-fn render_layer_inspector(ui: &mut egui::Ui, level_id: Uuid, layer_idx: usize, project: &mut Project) {
+fn render_layer_inspector(
+    ui: &mut egui::Ui,
+    level_id: Uuid,
+    layer_idx: usize,
+    project: &mut Project,
+) {
     let Some(level) = project.get_level_mut(level_id) else {
         ui.label("Level not found");
         return;
@@ -228,8 +233,16 @@ fn render_entity_inspector(
     // Position editor
     ui.horizontal(|ui| {
         ui.label("Position:");
-        ui.add(egui::DragValue::new(&mut entity.position[0]).speed(1.0).prefix("X: "));
-        ui.add(egui::DragValue::new(&mut entity.position[1]).speed(1.0).prefix("Y: "));
+        ui.add(
+            egui::DragValue::new(&mut entity.position[0])
+                .speed(1.0)
+                .prefix("X: "),
+        );
+        ui.add(
+            egui::DragValue::new(&mut entity.position[1])
+                .speed(1.0)
+                .prefix("Y: "),
+        );
     });
 
     // Properties section
@@ -327,7 +340,8 @@ fn render_data_type_inspector(ui: &mut egui::Ui, type_name: &str, project: &mut 
                 u8::from_str_radix(&hex[4..6], 16),
             ) {
                 let color = egui::Color32::from_rgb(r, g, b);
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(50.0, 20.0), egui::Sense::hover());
+                let (rect, _) =
+                    ui.allocate_exact_size(egui::vec2(50.0, 20.0), egui::Sense::hover());
                 ui.painter().rect_filled(rect, 2.0, color);
                 ui.label(format!("#{}", hex));
             }
@@ -362,7 +376,9 @@ fn render_data_type_inspector(ui: &mut egui::Ui, type_name: &str, project: &mut 
 
     // Show instance count
     ui.separator();
-    let instance_count = project.data.instances
+    let instance_count = project
+        .data
+        .instances
         .get(type_name)
         .map(|v| v.len())
         .unwrap_or(0);
@@ -482,7 +498,8 @@ fn render_data_instance_inspector(
                 &ref_options,
             ) {
                 // Handle inline instance creation for arrays
-                result.create_instance_for_array = Some((create_type, instance_id, prop_def.name.clone()));
+                result.create_instance_for_array =
+                    Some((create_type, instance_id, prop_def.name.clone()));
             }
         }
     } else {
@@ -505,7 +522,12 @@ fn render_data_instance_inspector(
     should_delete
 }
 
-fn render_sprite_sheet_inspector(ui: &mut egui::Ui, sprite_sheet_id: Uuid, project: &mut Project, result: &mut InspectorResult) {
+fn render_sprite_sheet_inspector(
+    ui: &mut egui::Ui,
+    sprite_sheet_id: Uuid,
+    project: &mut Project,
+    result: &mut InspectorResult,
+) {
     // First get mutable access to edit the name
     if let Some(sprite_sheet) = project.get_sprite_sheet_mut(sprite_sheet_id) {
         ui.horizontal(|ui| {
@@ -524,17 +546,27 @@ fn render_sprite_sheet_inspector(ui: &mut egui::Ui, sprite_sheet_id: Uuid, proje
 
     ui.horizontal(|ui| {
         ui.label("Sheet:");
-        ui.label(if sprite_sheet.sheet_path.is_empty() { "(not set)" } else { &sprite_sheet.sheet_path });
+        ui.label(if sprite_sheet.sheet_path.is_empty() {
+            "(not set)"
+        } else {
+            &sprite_sheet.sheet_path
+        });
     });
 
     ui.horizontal(|ui| {
         ui.label("Frame size:");
-        ui.label(format!("{}x{}", sprite_sheet.frame_width, sprite_sheet.frame_height));
+        ui.label(format!(
+            "{}x{}",
+            sprite_sheet.frame_width, sprite_sheet.frame_height
+        ));
     });
 
     ui.horizontal(|ui| {
         ui.label("Grid:");
-        ui.label(format!("{} columns x {} rows", sprite_sheet.columns, sprite_sheet.rows));
+        ui.label(format!(
+            "{} columns x {} rows",
+            sprite_sheet.columns, sprite_sheet.rows
+        ));
     });
 
     ui.horizontal(|ui| {
@@ -554,7 +586,12 @@ fn render_sprite_sheet_inspector(ui: &mut egui::Ui, sprite_sheet_id: Uuid, proje
     }
 }
 
-fn render_dialogue_inspector(ui: &mut egui::Ui, dialogue_id: &str, project: &mut Project, result: &mut InspectorResult) {
+fn render_dialogue_inspector(
+    ui: &mut egui::Ui,
+    dialogue_id: &str,
+    project: &mut Project,
+    result: &mut InspectorResult,
+) {
     // First get mutable access to edit the name
     if let Some(dialogue) = project.get_dialogue_mut(dialogue_id) {
         ui.horizontal(|ui| {
@@ -601,8 +638,8 @@ fn render_dialogue_inspector(ui: &mut egui::Ui, dialogue_id: &str, project: &mut
 
 /// Get a default value for a property based on its definition
 pub fn get_default_value(prop_def: &bevy_map_schema::PropertyDef) -> bevy_map_core::Value {
-    use bevy_map_schema::PropType;
     use bevy_map_core::Value;
+    use bevy_map_schema::PropType;
 
     if let Some(default) = &prop_def.default {
         return Value::from_json(default.clone());
@@ -928,7 +965,10 @@ fn render_array_editor(
 
     // Show item type in header for clarity
     let header_text = if let Some(ref item_type_name) = prop_def.item_type {
-        format!("{}: Array<{}> ({} items)", prop_def.name, item_type_name, item_count)
+        format!(
+            "{}: Array<{}> ({} items)",
+            prop_def.name, item_type_name, item_count
+        )
     } else {
         format!("{} ({} items)", prop_def.name, item_count)
     };

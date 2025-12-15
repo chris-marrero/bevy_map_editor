@@ -24,11 +24,7 @@ impl EntityPaintState {
 }
 
 /// Render the entity palette showing placeable types from the schema
-pub fn render_entity_palette(
-    ui: &mut egui::Ui,
-    editor_state: &mut EditorState,
-    project: &Project,
-) {
+pub fn render_entity_palette(ui: &mut egui::Ui, editor_state: &mut EditorState, project: &Project) {
     // Get all placeable types from schema
     let placeable_types = project.schema.placeable_type_names();
 
@@ -54,7 +50,8 @@ pub fn render_entity_palette(
             ui.horizontal(|ui| {
                 // Color swatch from type's color field
                 let color = parse_hex_color(&type_def.color);
-                let (rect, _) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
+                let (rect, _) =
+                    ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::hover());
                 ui.painter().rect_filled(rect, 2.0, color);
 
                 // Icon indicator if type has one

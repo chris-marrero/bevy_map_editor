@@ -78,11 +78,11 @@ impl DialogueNodeType {
     /// Get the color for this node type (RGB)
     pub fn color(&self) -> (u8, u8, u8) {
         match self {
-            DialogueNodeType::Text => (100, 149, 237),      // Cornflower blue
-            DialogueNodeType::Choice => (255, 165, 0),     // Orange
+            DialogueNodeType::Text => (100, 149, 237), // Cornflower blue
+            DialogueNodeType::Choice => (255, 165, 0), // Orange
             DialogueNodeType::Condition => (147, 112, 219), // Medium purple
-            DialogueNodeType::Action => (50, 205, 50),     // Lime green
-            DialogueNodeType::End => (220, 20, 60),        // Crimson
+            DialogueNodeType::Action => (50, 205, 50), // Lime green
+            DialogueNodeType::End => (220, 20, 60),    // Crimson
         }
     }
 }
@@ -347,7 +347,10 @@ impl DialogueTree {
         for (id, node) in &self.nodes {
             if let Some(next) = &node.next_node {
                 if !self.nodes.contains_key(next) {
-                    errors.push(format!("Node '{}' references non-existent node '{}'", id, next));
+                    errors.push(format!(
+                        "Node '{}' references non-existent node '{}'",
+                        id, next
+                    ));
                 }
             }
             for choice in &node.choices {
@@ -473,7 +476,11 @@ fn handle_start_dialogue(
     for event in events.read() {
         if let Some(tree) = dialogues.get(&event.dialogue) {
             if !tree.start_node.is_empty() {
-                runner.start(event.speaker_entity, event.dialogue.clone(), tree.start_node.clone());
+                runner.start(
+                    event.speaker_entity,
+                    event.dialogue.clone(),
+                    tree.start_node.clone(),
+                );
             }
         }
     }
@@ -491,10 +498,18 @@ fn handle_dialogue_choice(
             continue;
         }
 
-        let Some(handle) = &runner.dialogue_handle else { continue };
-        let Some(tree) = dialogues.get(handle) else { continue };
-        let Some(current_id) = &runner.current_node_id else { continue };
-        let Some(node) = tree.get_node(current_id) else { continue };
+        let Some(handle) = &runner.dialogue_handle else {
+            continue;
+        };
+        let Some(tree) = dialogues.get(handle) else {
+            continue;
+        };
+        let Some(current_id) = &runner.current_node_id else {
+            continue;
+        };
+        let Some(node) = tree.get_node(current_id) else {
+            continue;
+        };
 
         // Handle based on node type
         match node.node_type {
@@ -506,7 +521,9 @@ fn handle_dialogue_choice(
                     let speaker = runner.speaker_entity;
                     runner.end();
                     if let Some(entity) = speaker {
-                        end_events.write(DialogueEndEvent { speaker_entity: entity });
+                        end_events.write(DialogueEndEvent {
+                            speaker_entity: entity,
+                        });
                     }
                 }
             }
@@ -519,7 +536,9 @@ fn handle_dialogue_choice(
                         let speaker = runner.speaker_entity;
                         runner.end();
                         if let Some(entity) = speaker {
-                            end_events.write(DialogueEndEvent { speaker_entity: entity });
+                            end_events.write(DialogueEndEvent {
+                                speaker_entity: entity,
+                            });
                         }
                     }
                 }
@@ -528,7 +547,9 @@ fn handle_dialogue_choice(
                 let speaker = runner.speaker_entity;
                 runner.end();
                 if let Some(entity) = speaker {
-                    end_events.write(DialogueEndEvent { speaker_entity: entity });
+                    end_events.write(DialogueEndEvent {
+                        speaker_entity: entity,
+                    });
                 }
             }
             _ => {

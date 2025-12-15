@@ -114,7 +114,10 @@ pub fn collect_tiles_in_region(
 
     if let Some(level) = project.levels.iter().find(|l| l.id == level_id) {
         if let Some(layer) = level.layers.get(layer_idx) {
-            if let LayerData::Tiles { tiles: tile_data, .. } = &layer.data {
+            if let LayerData::Tiles {
+                tiles: tile_data, ..
+            } = &layer.data
+            {
                 for y in min_y..=max_y {
                     for x in min_x..=max_x {
                         if x >= 0 && y >= 0 && x < level.width as i32 && y < level.height as i32 {
@@ -188,7 +191,12 @@ pub struct CommandHistory {
 
 impl CommandHistory {
     /// Execute a command and add it to history
-    pub fn execute(&mut self, command: Box<dyn Command>, project: &mut Project, render_state: &mut RenderState) {
+    pub fn execute(
+        &mut self,
+        command: Box<dyn Command>,
+        project: &mut Project,
+        render_state: &mut RenderState,
+    ) {
         command.execute(project, render_state);
         self.undo_stack.push(command);
         self.redo_stack.clear(); // Clear redo stack on new command

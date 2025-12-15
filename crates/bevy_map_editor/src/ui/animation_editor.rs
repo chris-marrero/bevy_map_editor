@@ -277,14 +277,20 @@ fn render_spritesheet_settings(
         ui.horizontal(|ui| {
             ui.label("Frame Width:");
             let mut width = state.sprite_data.frame_width as i32;
-            if ui.add(egui::DragValue::new(&mut width).range(1..=1024)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut width).range(1..=1024))
+                .changed()
+            {
                 state.sprite_data.frame_width = width.max(1) as u32;
                 result.changed = true;
             }
 
             ui.label("Height:");
             let mut height = state.sprite_data.frame_height as i32;
-            if ui.add(egui::DragValue::new(&mut height).range(1..=1024)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut height).range(1..=1024))
+                .changed()
+            {
                 state.sprite_data.frame_height = height.max(1) as u32;
                 result.changed = true;
             }
@@ -293,14 +299,20 @@ fn render_spritesheet_settings(
         ui.horizontal(|ui| {
             ui.label("Columns:");
             let mut cols = state.sprite_data.columns as i32;
-            if ui.add(egui::DragValue::new(&mut cols).range(1..=100)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut cols).range(1..=100))
+                .changed()
+            {
                 state.sprite_data.columns = cols.max(1) as u32;
                 result.changed = true;
             }
 
             ui.label("Rows:");
             let mut rows = state.sprite_data.rows as i32;
-            if ui.add(egui::DragValue::new(&mut rows).range(1..=100)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut rows).range(1..=100))
+                .changed()
+            {
                 state.sprite_data.rows = rows.max(1) as u32;
                 result.changed = true;
             }
@@ -309,10 +321,16 @@ fn render_spritesheet_settings(
         // Auto-detect buttons
         if let Some((img_width, img_height)) = state.spritesheet_size {
             ui.horizontal(|ui| {
-                if ui.button("🔍 Auto-detect").on_hover_text("Calculate rows/columns from frame size").clicked() {
+                if ui
+                    .button("🔍 Auto-detect")
+                    .on_hover_text("Calculate rows/columns from frame size")
+                    .clicked()
+                {
                     if state.sprite_data.frame_width > 0 && state.sprite_data.frame_height > 0 {
-                        state.sprite_data.columns = (img_width as u32) / state.sprite_data.frame_width;
-                        state.sprite_data.rows = (img_height as u32) / state.sprite_data.frame_height;
+                        state.sprite_data.columns =
+                            (img_width as u32) / state.sprite_data.frame_width;
+                        state.sprite_data.rows =
+                            (img_height as u32) / state.sprite_data.frame_height;
                         result.changed = true;
                     }
                 }
@@ -323,7 +341,11 @@ fn render_spritesheet_settings(
                     state.sprite_data.rows = 1;
                     result.changed = true;
                 }
-                if ui.button("4×4").on_hover_text("4 columns, 4 rows").clicked() {
+                if ui
+                    .button("4×4")
+                    .on_hover_text("4 columns, 4 rows")
+                    .clicked()
+                {
                     state.sprite_data.columns = 4;
                     state.sprite_data.rows = 4;
                     result.changed = true;
@@ -340,14 +362,20 @@ fn render_spritesheet_settings(
     ui.horizontal(|ui| {
         ui.label("Pivot X:");
         let mut px = state.sprite_data.pivot_x;
-        if ui.add(egui::DragValue::new(&mut px).range(0.0..=1.0).speed(0.01)).changed() {
+        if ui
+            .add(egui::DragValue::new(&mut px).range(0.0..=1.0).speed(0.01))
+            .changed()
+        {
             state.sprite_data.pivot_x = px;
             result.changed = true;
         }
 
         ui.label("Y:");
         let mut py = state.sprite_data.pivot_y;
-        if ui.add(egui::DragValue::new(&mut py).range(0.0..=1.0).speed(0.01)).changed() {
+        if ui
+            .add(egui::DragValue::new(&mut py).range(0.0..=1.0).speed(0.01))
+            .changed()
+        {
             state.sprite_data.pivot_y = py;
             result.changed = true;
         }
@@ -400,10 +428,10 @@ fn render_animation_list(
         ui.text_edit_singleline(&mut state.new_animation_name);
         if ui.button("+ Add").clicked() && !state.new_animation_name.is_empty() {
             let name = state.new_animation_name.clone();
-            state.sprite_data.animations.insert(
-                name.clone(),
-                AnimationDef::default(),
-            );
+            state
+                .sprite_data
+                .animations
+                .insert(name.clone(), AnimationDef::default());
             state.selected_animation = Some(name);
             state.selected_frames.clear();
             state.new_animation_name.clear();
@@ -430,7 +458,10 @@ fn render_animation_editor_panel(
         ui.horizontal(|ui| {
             ui.label("Frame Duration (ms):");
             let mut duration = anim.frame_duration_ms as i32;
-            if ui.add(egui::DragValue::new(&mut duration).range(16..=2000)).changed() {
+            if ui
+                .add(egui::DragValue::new(&mut duration).range(16..=2000))
+                .changed()
+            {
                 anim.frame_duration_ms = duration.max(16) as u32;
                 result.changed = true;
             }
@@ -443,7 +474,10 @@ fn render_animation_editor_panel(
                 .selected_text(anim.loop_mode.display_name())
                 .show_ui(ui, |ui| {
                     for mode in LoopMode::all() {
-                        if ui.selectable_label(anim.loop_mode == *mode, mode.display_name()).clicked() {
+                        if ui
+                            .selectable_label(anim.loop_mode == *mode, mode.display_name())
+                            .clicked()
+                        {
                             anim.loop_mode = *mode;
                             result.changed = true;
                         }
@@ -493,10 +527,18 @@ fn render_animation_editor_panel(
 
 /// Render animated preview of the current animation
 fn render_animation_preview(ui: &mut egui::Ui, state: &SpriteEditorState) {
-    let Some(texture_id) = state.spritesheet_texture_id else { return };
-    let Some((img_width, img_height)) = state.spritesheet_size else { return };
-    let Some(anim_name) = &state.selected_animation else { return };
-    let Some(anim) = state.sprite_data.animations.get(anim_name) else { return };
+    let Some(texture_id) = state.spritesheet_texture_id else {
+        return;
+    };
+    let Some((img_width, img_height)) = state.spritesheet_size else {
+        return;
+    };
+    let Some(anim_name) = &state.selected_animation else {
+        return;
+    };
+    let Some(anim) = state.sprite_data.animations.get(anim_name) else {
+        return;
+    };
 
     if anim.frames.is_empty() {
         return;
@@ -535,11 +577,9 @@ fn render_animation_preview(ui: &mut egui::Ui, state: &SpriteEditorState) {
     // Draw a border around the preview
     ui.group(|ui| {
         ui.add(
-            egui::Image::new(egui::load::SizedTexture::new(texture_id, display_size))
-                .uv(egui::Rect::from_min_max(
-                    egui::pos2(u0, v0),
-                    egui::pos2(u1, v1),
-                ))
+            egui::Image::new(egui::load::SizedTexture::new(texture_id, display_size)).uv(
+                egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1)),
+            ),
         );
     });
 }
@@ -565,10 +605,8 @@ fn render_spritesheet_grid(
     egui::ScrollArea::both()
         .auto_shrink([false, false])
         .show(ui, |ui| {
-            let (response, painter) = ui.allocate_painter(
-                egui::vec2(total_w, total_h),
-                egui::Sense::click(),
-            );
+            let (response, painter) =
+                ui.allocate_painter(egui::vec2(total_w, total_h), egui::Sense::click());
 
             let rect = response.rect;
 
@@ -580,8 +618,10 @@ fn render_spritesheet_grid(
                 (state.spritesheet_texture_id, state.spritesheet_size)
             {
                 // Calculate the portion of the image to show based on grid settings
-                let grid_width = state.sprite_data.columns as f32 * state.sprite_data.frame_width as f32;
-                let grid_height = state.sprite_data.rows as f32 * state.sprite_data.frame_height as f32;
+                let grid_width =
+                    state.sprite_data.columns as f32 * state.sprite_data.frame_width as f32;
+                let grid_height =
+                    state.sprite_data.rows as f32 * state.sprite_data.frame_height as f32;
 
                 // UV coordinates for the grid portion
                 let u_max = (grid_width / img_width).min(1.0);
@@ -622,10 +662,8 @@ fn render_spritesheet_grid(
                     let frame_idx = state.sprite_data.grid_to_frame(col, row);
                     let x = rect.min.x + col as f32 * frame_w;
                     let y = rect.min.y + row as f32 * frame_h;
-                    let frame_rect = egui::Rect::from_min_size(
-                        egui::pos2(x, y),
-                        egui::vec2(frame_w, frame_h),
-                    );
+                    let frame_rect =
+                        egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(frame_w, frame_h));
 
                     // Check if frame is selected - highlight with semi-transparent overlay
                     let is_selected = state.selected_frames.contains(&frame_idx);
@@ -633,7 +671,7 @@ fn render_spritesheet_grid(
                         painter.rect_filled(
                             frame_rect,
                             0.0,
-                            egui::Color32::from_rgba_unmultiplied(100, 150, 255, 100)
+                            egui::Color32::from_rgba_unmultiplied(100, 150, 255, 100),
                         );
                     }
 
@@ -641,7 +679,10 @@ fn render_spritesheet_grid(
                     painter.rect_stroke(
                         frame_rect,
                         0.0,
-                        egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150)),
+                        egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgba_unmultiplied(200, 200, 200, 150),
+                        ),
                         egui::StrokeKind::Middle,
                     );
 
@@ -670,7 +711,9 @@ fn render_spritesheet_grid(
 
                         // Ctrl+click toggles, regular click adds
                         if ui.input(|i| i.modifiers.ctrl) {
-                            if let Some(pos) = state.selected_frames.iter().position(|&f| f == frame_idx) {
+                            if let Some(pos) =
+                                state.selected_frames.iter().position(|&f| f == frame_idx)
+                            {
                                 state.selected_frames.remove(pos);
                             } else {
                                 state.selected_frames.push(frame_idx);

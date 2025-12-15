@@ -83,14 +83,17 @@ pub mod loader;
 pub mod render;
 
 // Re-export commonly used types
-pub use entity_registry::{attach_dialogues, Dialogue, EntityProperties, EntityRegistry, MapEntityExt, MapEntityMarker, MapEntityType};
+pub use entity_registry::{
+    attach_dialogues, Dialogue, EntityProperties, EntityRegistry, MapEntityExt, MapEntityMarker,
+    MapEntityType,
+};
 pub use loader::{MapLoadError, MapProjectLoader};
-pub use render::{SpriteSlot, complete_sprite_loads, spawn_sprite_components};
+pub use render::{complete_sprite_loads, spawn_sprite_components, SpriteSlot};
 
 // Re-export key dialogue types for convenience
 pub use bevy_map_dialogue::{
-    DialogueTree, DialogueNode, DialogueNodeType, DialogueChoice,
-    DialogueRunner, DialogueHandle, StartDialogueEvent, DialogueChoiceEvent, DialogueEndEvent,
+    DialogueChoice, DialogueChoiceEvent, DialogueEndEvent, DialogueHandle, DialogueNode,
+    DialogueNodeType, DialogueRunner, DialogueTree, StartDialogueEvent,
 };
 
 /// Plugin for runtime map rendering
@@ -201,10 +204,7 @@ struct MapHandleState {
 }
 
 /// System that initializes newly added MapHandle components
-fn initialize_map_handles(
-    mut commands: Commands,
-    query: Query<Entity, Added<MapHandle>>,
-) {
+fn initialize_map_handles(mut commands: Commands, query: Query<Entity, Added<MapHandle>>) {
     for entity in query.iter() {
         commands.entity(entity).insert(MapHandleState::default());
     }
@@ -555,7 +555,9 @@ fn initialize_animated_sprite_handles(
     query: Query<Entity, Added<AnimatedSpriteHandle>>,
 ) {
     for entity in query.iter() {
-        commands.entity(entity).insert(AnimatedSpriteHandleState::default());
+        commands
+            .entity(entity)
+            .insert(AnimatedSpriteHandleState::default());
     }
 }
 
@@ -565,7 +567,11 @@ fn handle_animated_sprite_loading(
     asset_server: Res<AssetServer>,
     map_assets: Res<Assets<MapProject>>,
     mut sprite_data_assets: ResMut<Assets<bevy_map_animation::SpriteData>>,
-    mut query: Query<(Entity, &AnimatedSpriteHandle, &mut AnimatedSpriteHandleState)>,
+    mut query: Query<(
+        Entity,
+        &AnimatedSpriteHandle,
+        &mut AnimatedSpriteHandleState,
+    )>,
 ) {
     use bevy::asset::LoadState;
 
@@ -616,7 +622,9 @@ fn handle_animated_sprite_loading(
         let mut animated = bevy_map_animation::AnimatedSprite::new(sprite_data_handle);
         animated.play(&handle.initial_animation);
 
-        let custom_size = handle.scale.map(|s| Vec2::new(frame_w as f32 * s, frame_h as f32 * s));
+        let custom_size = handle
+            .scale
+            .map(|s| Vec2::new(frame_w as f32 * s, frame_h as f32 * s));
 
         commands.entity(entity).insert((
             Sprite {
@@ -698,7 +706,9 @@ fn initialize_dialogue_tree_handles(
     query: Query<Entity, Added<DialogueTreeHandle>>,
 ) {
     for entity in query.iter() {
-        commands.entity(entity).insert(DialogueTreeHandleState::default());
+        commands
+            .entity(entity)
+            .insert(DialogueTreeHandleState::default());
     }
 }
 
@@ -721,17 +731,16 @@ fn handle_dialogue_tree_loading(
 
         // Find dialogue by name
         let Some(dialogue) = project.dialogue_by_name(&handle.dialogue_name) else {
-            warn!(
-                "Dialogue '{}' not found in project",
-                handle.dialogue_name
-            );
+            warn!("Dialogue '{}' not found in project", handle.dialogue_name);
             state.completed = true;
             continue;
         };
 
         // Add dialogue to assets and attach DialogueHandle component
         let dialogue_handle = dialogue_assets.add(dialogue.clone());
-        commands.entity(entity).insert(DialogueHandle(dialogue_handle));
+        commands
+            .entity(entity)
+            .insert(DialogueHandle(dialogue_handle));
 
         state.completed = true;
         info!("Auto-loaded dialogue: {}", handle.dialogue_name);
@@ -1015,14 +1024,20 @@ pub fn spawn_map_project(
 
     // Spawn each tile layer
     for (layer_index, layer) in level.layers.iter().enumerate() {
-        if let bevy_map_core::LayerData::Tiles { tileset_id, tiles, .. } = &layer.data {
+        if let bevy_map_core::LayerData::Tiles {
+            tileset_id, tiles, ..
+        } = &layer.data
+        {
             if tiles.is_empty() {
                 continue;
             }
 
             // Get tileset from project
             let Some(tileset) = project.get_tileset(*tileset_id) else {
-                warn!("Layer {} references missing tileset {}", layer_index, tileset_id);
+                warn!(
+                    "Layer {} references missing tileset {}",
+                    layer_index, tileset_id
+                );
                 continue;
             };
 
@@ -1038,10 +1053,11 @@ pub fn spawn_map_project(
                         if let Some((image_index, local_tile_index)) =
                             tileset.virtual_to_local(virtual_tile_index)
                         {
-                            tiles_by_image
-                                .entry(image_index)
-                                .or_default()
-                                .push((x, y, local_tile_index));
+                            tiles_by_image.entry(image_index).or_default().push((
+                                x,
+                                y,
+                                local_tile_index,
+                            ));
                         }
                     }
                 }

@@ -5,11 +5,7 @@ use crate::{Schema, SchemaError};
 /// Validate that the schema is internally consistent
 pub fn validate_schema(schema: &Schema) -> Result<(), SchemaError> {
     // Check that all enum references point to valid enums
-    for (type_name, type_def) in schema
-        .data_types
-        .iter()
-        .chain(schema.embedded_types.iter())
-    {
+    for (type_name, type_def) in schema.data_types.iter().chain(schema.embedded_types.iter()) {
         for prop in &type_def.properties {
             if let Some(enum_type) = &prop.enum_type {
                 if !schema.enums.contains_key(enum_type) {
@@ -49,9 +45,9 @@ pub fn validate_instance(
     type_name: &str,
     properties: &std::collections::HashMap<String, serde_json::Value>,
 ) -> Result<(), SchemaError> {
-    let type_def = schema.get_type(type_name).ok_or_else(|| {
-        SchemaError::ValidationError(format!("Unknown type: {}", type_name))
-    })?;
+    let type_def = schema
+        .get_type(type_name)
+        .ok_or_else(|| SchemaError::ValidationError(format!("Unknown type: {}", type_name)))?;
 
     // Check required properties are present
     for prop_def in &type_def.properties {
@@ -198,7 +194,8 @@ mod tests {
 
     #[test]
     fn test_validate_required_property() {
-        let schema = parse_schema(r#"{
+        let schema = parse_schema(
+            r#"{
             "version": 1,
             "project": { "name": "Test" },
             "enums": {},
@@ -210,7 +207,9 @@ mod tests {
                 }
             },
             "embedded_types": {}
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         // Missing required property
         let props = std::collections::HashMap::new();
@@ -226,7 +225,8 @@ mod tests {
 
     #[test]
     fn test_validate_min_max() {
-        let schema = parse_schema(r#"{
+        let schema = parse_schema(
+            r#"{
             "version": 1,
             "project": { "name": "Test" },
             "enums": {},
@@ -238,7 +238,9 @@ mod tests {
                 }
             },
             "embedded_types": {}
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         // Below min
         let mut props = std::collections::HashMap::new();
@@ -259,7 +261,8 @@ mod tests {
 
     #[test]
     fn test_validate_enum() {
-        let schema = parse_schema(r#"{
+        let schema = parse_schema(
+            r#"{
             "version": 1,
             "project": { "name": "Test" },
             "enums": {
@@ -273,7 +276,9 @@ mod tests {
                 }
             },
             "embedded_types": {}
-        }"#).unwrap();
+        }"#,
+        )
+        .unwrap();
 
         // Invalid enum value
         let mut props = std::collections::HashMap::new();

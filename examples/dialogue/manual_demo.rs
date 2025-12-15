@@ -35,7 +35,10 @@ fn main() {
         .init_asset_loader::<MapProjectLoader>()
         .init_resource::<ManualLoadingState>()
         .add_systems(Startup, setup)
-        .add_systems(Update, (setup_dialogue_when_ready, handle_input, update_display))
+        .add_systems(
+            Update,
+            (setup_dialogue_when_ready, handle_input, update_display),
+        )
         .run();
 }
 
@@ -50,7 +53,11 @@ struct ManualLoadingState {
 #[derive(Component)]
 struct DialogueDisplay;
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut state: ResMut<ManualLoadingState>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut state: ResMut<ManualLoadingState>,
+) {
     commands.spawn(Camera2d);
 
     // =========================================================================
@@ -63,7 +70,10 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut state: ResM
     // Display
     commands.spawn((
         Text::new("Dialogue Manual Demo\n\nManual Loading Approach\n\nLoading..."),
-        TextFont { font_size: 20.0, ..default() },
+        TextFont {
+            font_size: 20.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
@@ -87,16 +97,23 @@ fn setup_dialogue_when_ready(
         return;
     }
 
-    let Some(handle) = &state.map_handle else { return };
-    let Some(project) = map_assets.get(handle) else { return };
+    let Some(handle) = &state.map_handle else {
+        return;
+    };
+    let Some(project) = map_assets.get(handle) else {
+        return;
+    };
 
     // =========================================================================
     // MANUAL: Get the first dialogue tree from the project
     // =========================================================================
     // You have access to the raw DialogueTree data here
     if let Some(tree) = project.dialogues.values().next() {
-        info!("Manual approach: loaded dialogue '{}' with {} nodes",
-            tree.name, tree.nodes.len());
+        info!(
+            "Manual approach: loaded dialogue '{}' with {} nodes",
+            tree.name,
+            tree.nodes.len()
+        );
         state.tree = Some(tree.clone());
     } else {
         warn!("No dialogues found in project");
@@ -141,7 +158,10 @@ fn handle_input(
         if let Some(current_id) = &runner.current_node_id {
             if let Some(node) = tree.get_node(current_id) {
                 if node.node_type == DialogueNodeType::Choice {
-                    for (i, key) in [KeyCode::KeyA, KeyCode::KeyB, KeyCode::KeyC].iter().enumerate() {
+                    for (i, key) in [KeyCode::KeyA, KeyCode::KeyB, KeyCode::KeyC]
+                        .iter()
+                        .enumerate()
+                    {
                         if keyboard.just_pressed(*key) && node.choices.len() > i {
                             if let Some(next) = &node.choices[i].next_node {
                                 runner.current_node_id = Some(next.clone());
@@ -159,7 +179,9 @@ fn update_display(
     runner: Res<DialogueRunner>,
     mut display_query: Query<&mut Text, With<DialogueDisplay>>,
 ) {
-    let Ok(mut text) = display_query.single_mut() else { return };
+    let Ok(mut text) = display_query.single_mut() else {
+        return;
+    };
 
     let Some(tree) = &state.tree else {
         *text = Text::new("Dialogue Manual Demo\n\nManual Loading Approach\n\nLoading dialogue...");

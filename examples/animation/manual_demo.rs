@@ -50,7 +50,11 @@ struct ManualLoadingState {
     initialized: bool,
 }
 
-fn setup(mut commands: Commands, asset_server: Res<AssetServer>, mut state: ResMut<ManualLoadingState>) {
+fn setup(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut state: ResMut<ManualLoadingState>,
+) {
     commands.spawn(Camera2d);
 
     // =========================================================================
@@ -92,8 +96,12 @@ fn setup_sprite_when_ready(
     }
 
     // Wait for asset to load
-    let Some(handle) = &state.map_handle else { return };
-    let Some(project) = map_assets.get(handle) else { return };
+    let Some(handle) = &state.map_handle else {
+        return;
+    };
+    let Some(project) = map_assets.get(handle) else {
+        return;
+    };
 
     // =========================================================================
     // MANUAL: Get the sprite sheet from the project
@@ -139,10 +147,7 @@ fn setup_sprite_when_ready(
     info!("Manual sprite created from loaded map project");
 }
 
-fn handle_input(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut query: Query<&mut AnimatedSprite>,
-) {
+fn handle_input(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query<&mut AnimatedSprite>) {
     let animation = if keyboard.just_pressed(KeyCode::Digit1) {
         Some("walk")
     } else if keyboard.just_pressed(KeyCode::Digit2) {
@@ -173,10 +178,13 @@ fn update_hud(
     query: Query<Option<&AnimatedSprite>>,
     mut hud_query: Query<&mut Text, With<AnimationHud>>,
 ) {
-    let Ok(mut text) = hud_query.single_mut() else { return };
+    let Ok(mut text) = hud_query.single_mut() else {
+        return;
+    };
 
     let status = match query.single() {
-        Ok(Some(a)) => format!("{} ({})",
+        Ok(Some(a)) => format!(
+            "{} ({})",
             a.current_animation.as_deref().unwrap_or("none"),
             if a.playing { "playing" } else { "stopped" }
         ),

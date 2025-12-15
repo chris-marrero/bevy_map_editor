@@ -61,7 +61,8 @@ impl EntityInstance {
 
     /// Set a string property
     pub fn set_string(&mut self, key: &str, value: String) {
-        self.properties.insert(key.to_string(), Value::String(value));
+        self.properties
+            .insert(key.to_string(), Value::String(value));
     }
 
     /// Get an integer property

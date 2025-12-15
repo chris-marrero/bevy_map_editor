@@ -189,10 +189,8 @@ pub fn render_dialogue_editor(
                 let available = ui.available_size();
 
                 // Canvas area
-                let (canvas_response, painter) = ui.allocate_painter(
-                    available,
-                    Sense::click_and_drag(),
-                );
+                let (canvas_response, painter) =
+                    ui.allocate_painter(available, Sense::click_and_drag());
 
                 let canvas_rect = canvas_response.rect;
 
@@ -222,7 +220,9 @@ pub fn render_dialogue_editor(
                 if let Some(conn) = node_changes.start_connection {
                     state.creating_connection = Some(conn);
                 }
-                if let Some((source_id, is_choice, choice_idx, target_id)) = node_changes.complete_connection {
+                if let Some((source_id, is_choice, choice_idx, target_id)) =
+                    node_changes.complete_connection
+                {
                     if is_choice {
                         if let Some(source) = state.dialogue_tree.get_node_mut(&source_id) {
                             if let Some(choice) = source.choices.get_mut(choice_idx) {
@@ -240,7 +240,13 @@ pub fn render_dialogue_editor(
                 // Draw connection being created
                 if let Some((source_id, is_choice, choice_idx)) = &state.creating_connection {
                     if let Some(source_node) = state.dialogue_tree.get_node(source_id) {
-                        let source_pos = node_output_pos(source_node, canvas_rect, state, *is_choice, *choice_idx);
+                        let source_pos = node_output_pos(
+                            source_node,
+                            canvas_rect,
+                            state,
+                            *is_choice,
+                            *choice_idx,
+                        );
                         if let Some(pointer_pos) = ui.ctx().pointer_latest_pos() {
                             painter.line_segment(
                                 [source_pos, pointer_pos],
@@ -251,7 +257,10 @@ pub fn render_dialogue_editor(
                 }
 
                 // Clear connection if released not on a target
-                if ui.input(|i| i.pointer.any_released()) && state.creating_connection.is_some() && !node_changes.connection_dropped_on_target {
+                if ui.input(|i| i.pointer.any_released())
+                    && state.creating_connection.is_some()
+                    && !node_changes.connection_dropped_on_target
+                {
                     state.creating_connection = None;
                 }
             });
@@ -279,7 +288,9 @@ fn handle_canvas_interaction(
     _result: &mut DialogueEditorResult,
 ) {
     // Pan with middle mouse or right drag
-    if response.dragged_by(egui::PointerButton::Secondary) || response.dragged_by(egui::PointerButton::Middle) {
+    if response.dragged_by(egui::PointerButton::Secondary)
+        || response.dragged_by(egui::PointerButton::Middle)
+    {
         state.pan_offset += response.drag_delta();
     }
 
@@ -400,13 +411,22 @@ fn node_input_pos(node: &DialogueNode, canvas_rect: Rect, state: &DialogueEditor
 }
 
 /// Get the output connection position for a node
-fn node_output_pos(node: &DialogueNode, canvas_rect: Rect, state: &DialogueEditorState, is_choice: bool, choice_index: usize) -> Pos2 {
+fn node_output_pos(
+    node: &DialogueNode,
+    canvas_rect: Rect,
+    state: &DialogueEditorState,
+    is_choice: bool,
+    choice_index: usize,
+) -> Pos2 {
     let node_rect = node_rect(node, canvas_rect, state);
     if is_choice {
         let y_offset = NODE_HEADER_HEIGHT + NODE_PADDING + (choice_index as f32 + 0.5) * 24.0;
         Pos2::new(node_rect.right(), node_rect.top() + y_offset)
     } else {
-        Pos2::new(node_rect.right(), node_rect.top() + NODE_HEADER_HEIGHT / 2.0)
+        Pos2::new(
+            node_rect.right(),
+            node_rect.top() + NODE_HEADER_HEIGHT / 2.0,
+        )
     }
 }
 
@@ -491,10 +511,19 @@ fn draw_nodes(
         );
 
         // Draw border
-        painter.rect_stroke(rect, CornerRadius::same(4), Stroke::new(2.0, border_color), StrokeKind::Outside);
+        painter.rect_stroke(
+            rect,
+            CornerRadius::same(4),
+            Stroke::new(2.0, border_color),
+            StrokeKind::Outside,
+        );
 
         // Draw header text
-        let header_text = format!("{}: {}", node.node_type.display_name(), truncate_str(&node.speaker, 15));
+        let header_text = format!(
+            "{}: {}",
+            node.node_type.display_name(),
+            truncate_str(&node.speaker, 15)
+        );
         painter.text(
             header_rect.center(),
             egui::Align2::CENTER_CENTER,
@@ -518,17 +547,30 @@ fn draw_nodes(
 
         // Draw input connector
         let input_pos = node_input_pos(&node, canvas_rect, state);
-        painter.circle_filled(input_pos, CONNECTION_RADIUS, Color32::from_rgb(100, 200, 100));
+        painter.circle_filled(
+            input_pos,
+            CONNECTION_RADIUS,
+            Color32::from_rgb(100, 200, 100),
+        );
 
         // Draw output connector
         let output_pos = node_output_pos(&node, canvas_rect, state, false, 0);
-        painter.circle_filled(output_pos, CONNECTION_RADIUS, Color32::from_rgb(200, 100, 100));
+        painter.circle_filled(
+            output_pos,
+            CONNECTION_RADIUS,
+            Color32::from_rgb(200, 100, 100),
+        );
 
         // Draw choice connectors
         for (i, choice) in node.choices.iter().enumerate() {
-            let choice_y = rect.top() + NODE_HEADER_HEIGHT + NODE_PADDING + 50.0 + (i as f32) * 24.0;
+            let choice_y =
+                rect.top() + NODE_HEADER_HEIGHT + NODE_PADDING + 50.0 + (i as f32) * 24.0;
             let choice_pos = Pos2::new(rect.right(), choice_y + 12.0);
-            painter.circle_filled(choice_pos, CONNECTION_RADIUS * 0.8, Color32::from_rgb(255, 180, 100));
+            painter.circle_filled(
+                choice_pos,
+                CONNECTION_RADIUS * 0.8,
+                Color32::from_rgb(255, 180, 100),
+            );
 
             // Draw choice text
             let choice_text_pos = Pos2::new(rect.left() + NODE_PADDING, choice_y);
@@ -570,7 +612,11 @@ fn draw_nodes(
 
         // Handle connection creation from output
         let output_rect = Rect::from_center_size(output_pos, Vec2::splat(CONNECTION_RADIUS * 2.5));
-        let output_response = ui.interact(output_rect, egui::Id::new(format!("{}_out", node_id)), Sense::click_and_drag());
+        let output_response = ui.interact(
+            output_rect,
+            egui::Id::new(format!("{}_out", node_id)),
+            Sense::click_and_drag(),
+        );
 
         if output_response.drag_started() {
             result.start_connection = Some((node_id.clone(), false, 0));
@@ -578,12 +624,17 @@ fn draw_nodes(
 
         // Handle connection drop on input
         let input_rect = Rect::from_center_size(input_pos, Vec2::splat(CONNECTION_RADIUS * 2.5));
-        let input_response = ui.interact(input_rect, egui::Id::new(format!("{}_in", node_id)), Sense::click());
+        let input_response = ui.interact(
+            input_rect,
+            egui::Id::new(format!("{}_in", node_id)),
+            Sense::click(),
+        );
 
         if input_response.hovered() && ui.input(|i| i.pointer.any_released()) {
             if let Some((source_id, is_choice, choice_idx)) = &state.creating_connection {
                 if source_id != &node_id {
-                    result.complete_connection = Some((source_id.clone(), *is_choice, *choice_idx, node_id.clone()));
+                    result.complete_connection =
+                        Some((source_id.clone(), *is_choice, *choice_idx, node_id.clone()));
                     result.connection_dropped_on_target = true;
                 }
             }
@@ -592,7 +643,8 @@ fn draw_nodes(
         // Handle choice output connections
         for (i, _) in node.choices.iter().enumerate() {
             let choice_out_pos = node_output_pos(&node, canvas_rect, state, true, i);
-            let choice_out_rect = Rect::from_center_size(choice_out_pos, Vec2::splat(CONNECTION_RADIUS * 2.0));
+            let choice_out_rect =
+                Rect::from_center_size(choice_out_pos, Vec2::splat(CONNECTION_RADIUS * 2.0));
             let choice_out_response = ui.interact(
                 choice_out_rect,
                 egui::Id::new(format!("{}_choice_{}", node_id, i)),
@@ -619,7 +671,10 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
             .selected_text(node.node_type.display_name())
             .show_ui(ui, |ui| {
                 for t in DialogueNodeType::all() {
-                    if ui.selectable_label(node.node_type == *t, t.display_name()).clicked() {
+                    if ui
+                        .selectable_label(node.node_type == *t, t.display_name())
+                        .clicked()
+                    {
                         node.node_type = *t;
                         changed = true;
                     }
@@ -640,7 +695,11 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
     // Text
     ui.label("Text:");
     if ui
-        .add(egui::TextEdit::multiline(&mut node.text).desired_rows(3).desired_width(f32::INFINITY))
+        .add(
+            egui::TextEdit::multiline(&mut node.text)
+                .desired_rows(3)
+                .desired_width(f32::INFINITY),
+        )
         .changed()
     {
         changed = true;
@@ -652,8 +711,18 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
     ui.collapsing("Condition", |ui| {
         let mut condition = node.condition.clone().unwrap_or_default();
         ui.label("Show this node if:");
-        if ui.add(egui::TextEdit::singleline(&mut condition).hint_text("e.g. has_quest(\"quest_id\")")).changed() {
-            node.condition = if condition.is_empty() { None } else { Some(condition) };
+        if ui
+            .add(
+                egui::TextEdit::singleline(&mut condition)
+                    .hint_text("e.g. has_quest(\"quest_id\")"),
+            )
+            .changed()
+        {
+            node.condition = if condition.is_empty() {
+                None
+            } else {
+                Some(condition)
+            };
             changed = true;
         }
         ui.small("(Scripting not yet implemented)");
@@ -663,8 +732,15 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
     ui.collapsing("Action", |ui| {
         let mut action = node.action.clone().unwrap_or_default();
         ui.label("Execute when entering:");
-        if ui.add(egui::TextEdit::singleline(&mut action).hint_text("e.g. give_item(\"item_id\")")).changed() {
-            node.action = if action.is_empty() { None } else { Some(action) };
+        if ui
+            .add(egui::TextEdit::singleline(&mut action).hint_text("e.g. give_item(\"item_id\")"))
+            .changed()
+        {
+            node.action = if action.is_empty() {
+                None
+            } else {
+                Some(action)
+            };
             changed = true;
         }
         ui.small("(Scripting not yet implemented)");
@@ -692,7 +768,10 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
             ui.horizontal(|ui| {
                 ui.label("  If:");
                 let mut cond = choice.condition.clone().unwrap_or_default();
-                if ui.add(egui::TextEdit::singleline(&mut cond).desired_width(150.0)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(&mut cond).desired_width(150.0))
+                    .changed()
+                {
                     choice.condition = if cond.is_empty() { None } else { Some(cond) };
                     changed = true;
                 }
@@ -719,7 +798,11 @@ fn render_node_properties(ui: &mut egui::Ui, node: &mut DialogueNode) -> bool {
     ui.label("Connections:");
 
     let has_next = node.next_node.is_some();
-    let next_display = node.next_node.as_ref().map(|n| truncate_str(n, 12)).unwrap_or_else(|| "(none)".to_string());
+    let next_display = node
+        .next_node
+        .as_ref()
+        .map(|n| truncate_str(n, 12))
+        .unwrap_or_else(|| "(none)".to_string());
 
     ui.horizontal(|ui| {
         ui.label(format!("Next: {}", next_display));

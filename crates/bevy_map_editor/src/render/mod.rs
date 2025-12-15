@@ -180,7 +180,8 @@ fn sync_layer_visibility(
 
             // Update visibility of all tilemaps for this layer
             for (editor_tilemap, mut visibility) in tilemap_query.iter_mut() {
-                if editor_tilemap.level_id == level_id && editor_tilemap.layer_index == layer_index {
+                if editor_tilemap.level_id == level_id && editor_tilemap.layer_index == layer_index
+                {
                     *visibility = if layer.visible {
                         Visibility::Inherited
                     } else {
@@ -203,7 +204,10 @@ fn spawn_level_tilemaps(
 ) {
     for (layer_index, layer) in level.layers.iter().enumerate() {
         // Skip non-tile layers
-        let LayerData::Tiles { tileset_id, tiles, .. } = &layer.data else {
+        let LayerData::Tiles {
+            tileset_id, tiles, ..
+        } = &layer.data
+        else {
             continue;
         };
 
@@ -227,10 +231,11 @@ fn spawn_level_tilemaps(
                     if let Some((image_index, local_tile_index)) =
                         tileset.virtual_to_local(*virtual_tile_index)
                     {
-                        tiles_by_image
-                            .entry(image_index)
-                            .or_default()
-                            .push((x, y, local_tile_index));
+                        tiles_by_image.entry(image_index).or_default().push((
+                            x,
+                            y,
+                            local_tile_index,
+                        ));
                     }
                 }
             }
@@ -416,25 +421,29 @@ fn sync_grid_rendering(
 
     // Get current level info
     let level_info = editor_state.selected_level.and_then(|level_id| {
-        project.levels.iter().find(|l| l.id == level_id).map(|level| {
-            // Get tile size from first tile layer's tileset, or default
-            let tile_size = level
-                .layers
-                .iter()
-                .find_map(|layer| {
-                    if let LayerData::Tiles { tileset_id, .. } = &layer.data {
-                        project
-                            .tilesets
-                            .iter()
-                            .find(|t| t.id == *tileset_id)
-                            .map(|t| t.tile_size)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(32);
-            (level.width, level.height, tile_size)
-        })
+        project
+            .levels
+            .iter()
+            .find(|l| l.id == level_id)
+            .map(|level| {
+                // Get tile size from first tile layer's tileset, or default
+                let tile_size = level
+                    .layers
+                    .iter()
+                    .find_map(|layer| {
+                        if let LayerData::Tiles { tileset_id, .. } = &layer.data {
+                            project
+                                .tilesets
+                                .iter()
+                                .find(|t| t.id == *tileset_id)
+                                .map(|t| t.tile_size)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(32);
+                (level.width, level.height, tile_size)
+            })
     });
 
     // Check if we need to update grid
@@ -607,13 +616,15 @@ fn get_tile_size(editor_state: &EditorState, project: &Project) -> f32 {
 
     let level = level_id.and_then(|id| project.levels.iter().find(|l| l.id == id));
     let layer_tileset_id = level.and_then(|l| {
-        layer_idx.and_then(|idx| l.layers.get(idx)).and_then(|layer| {
-            if let LayerData::Tiles { tileset_id, .. } = &layer.data {
-                Some(*tileset_id)
-            } else {
-                None
-            }
-        })
+        layer_idx
+            .and_then(|idx| l.layers.get(idx))
+            .and_then(|layer| {
+                if let LayerData::Tiles { tileset_id, .. } = &layer.data {
+                    Some(*tileset_id)
+                } else {
+                    None
+                }
+            })
     });
 
     layer_tileset_id
@@ -861,7 +872,10 @@ fn sync_terrain_preview(
 ) {
     // Build the new tiles map from editor state
     let new_tiles: HashMap<(i32, i32), u32> = if editor_state.terrain_preview.active {
-        editor_state.terrain_preview.preview_tiles.iter()
+        editor_state
+            .terrain_preview
+            .preview_tiles
+            .iter()
             .map(|&((x, y), tile_id)| ((x, y), tile_id))
             .collect()
     } else {
@@ -869,21 +883,24 @@ fn sync_terrain_preview(
     };
 
     // Check if anything changed
-    if new_tiles == preview_cache.current_tiles && editor_state.terrain_preview.active == preview_cache.was_active {
+    if new_tiles == preview_cache.current_tiles
+        && editor_state.terrain_preview.active == preview_cache.was_active
+    {
         return; // No change, skip all work
     }
 
     // Find tiles to remove (in cache but not in new)
-    let to_remove: Vec<(i32, i32)> = preview_cache.current_tiles.keys()
+    let to_remove: Vec<(i32, i32)> = preview_cache
+        .current_tiles
+        .keys()
         .filter(|pos| !new_tiles.contains_key(pos))
         .copied()
         .collect();
 
     // Find tiles to add (in new but not in cache, or tile_id changed)
-    let to_add: Vec<((i32, i32), u32)> = new_tiles.iter()
-        .filter(|(pos, tile_id)| {
-            preview_cache.current_tiles.get(pos) != Some(tile_id)
-        })
+    let to_add: Vec<((i32, i32), u32)> = new_tiles
+        .iter()
+        .filter(|(pos, tile_id)| preview_cache.current_tiles.get(pos) != Some(tile_id))
         .map(|(&pos, &tile_id)| (pos, tile_id))
         .collect();
 
@@ -898,9 +915,10 @@ fn sync_terrain_preview(
     }
 
     // Get tileset info for spawning new entities
-    let tileset_info = editor_state.terrain_preview.tileset_id.and_then(|tileset_id| {
-        project.tilesets.iter().find(|t| t.id == tileset_id)
-    });
+    let tileset_info = editor_state
+        .terrain_preview
+        .tileset_id
+        .and_then(|tileset_id| project.tilesets.iter().find(|t| t.id == tileset_id));
 
     let Some(tileset) = tileset_info else {
         // No tileset, clear everything remaining
@@ -936,7 +954,9 @@ fn sync_terrain_preview(
         // Spawn tile sprite
         if let Some((image_index, local_tile_index)) = tileset.virtual_to_local(tile_id) {
             if let Some(image) = tileset.images.get(image_index) {
-                if let Some((texture_handle, _, img_width, img_height)) = tileset_cache.loaded.get(&image.id) {
+                if let Some((texture_handle, _, img_width, img_height)) =
+                    tileset_cache.loaded.get(&image.id)
+                {
                     let columns = (*img_width as u32) / tileset.tile_size;
                     let rows = (*img_height as u32) / tileset.tile_size;
 
@@ -950,19 +970,21 @@ fn sync_terrain_preview(
                         );
                         let atlas_layout_handle = texture_atlas_layouts.add(layout);
 
-                        let entity = commands.spawn((
-                            Sprite {
-                                color: preview_tile_color,
-                                image: texture_handle.clone(),
-                                texture_atlas: Some(TextureAtlas {
-                                    layout: atlas_layout_handle,
-                                    index: local_tile_index as usize,
-                                }),
-                                ..default()
-                            },
-                            Transform::from_xyz(world_x, world_y, 179.0),
-                            TerrainPreviewHighlight,
-                        )).id();
+                        let entity = commands
+                            .spawn((
+                                Sprite {
+                                    color: preview_tile_color,
+                                    image: texture_handle.clone(),
+                                    texture_atlas: Some(TextureAtlas {
+                                        layout: atlas_layout_handle,
+                                        index: local_tile_index as usize,
+                                    }),
+                                    ..default()
+                                },
+                                Transform::from_xyz(world_x, world_y, 179.0),
+                                TerrainPreviewHighlight,
+                            ))
+                            .id();
                         entities.push(entity);
                     }
                 }
@@ -970,63 +992,89 @@ fn sync_terrain_preview(
         }
 
         // Blue highlight overlay
-        let entity = commands.spawn((
-            Sprite {
-                color: highlight_color,
-                custom_size: Some(Vec2::new(tile_size, tile_size)),
-                ..default()
-            },
-            Transform::from_xyz(world_x, world_y, 180.0),
-            TerrainPreviewHighlight,
-        )).id();
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: highlight_color,
+                    custom_size: Some(Vec2::new(tile_size, tile_size)),
+                    ..default()
+                },
+                Transform::from_xyz(world_x, world_y, 180.0),
+                TerrainPreviewHighlight,
+            ))
+            .id();
         entities.push(entity);
 
         // Top border
-        let entity = commands.spawn((
-            Sprite {
-                color: border_color,
-                custom_size: Some(Vec2::new(tile_size, border_thickness)),
-                ..default()
-            },
-            Transform::from_xyz(world_x, world_y + tile_size / 2.0 - border_thickness / 2.0, 181.0),
-            TerrainPreviewHighlight,
-        )).id();
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: border_color,
+                    custom_size: Some(Vec2::new(tile_size, border_thickness)),
+                    ..default()
+                },
+                Transform::from_xyz(
+                    world_x,
+                    world_y + tile_size / 2.0 - border_thickness / 2.0,
+                    181.0,
+                ),
+                TerrainPreviewHighlight,
+            ))
+            .id();
         entities.push(entity);
 
         // Bottom border
-        let entity = commands.spawn((
-            Sprite {
-                color: border_color,
-                custom_size: Some(Vec2::new(tile_size, border_thickness)),
-                ..default()
-            },
-            Transform::from_xyz(world_x, world_y - tile_size / 2.0 + border_thickness / 2.0, 181.0),
-            TerrainPreviewHighlight,
-        )).id();
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: border_color,
+                    custom_size: Some(Vec2::new(tile_size, border_thickness)),
+                    ..default()
+                },
+                Transform::from_xyz(
+                    world_x,
+                    world_y - tile_size / 2.0 + border_thickness / 2.0,
+                    181.0,
+                ),
+                TerrainPreviewHighlight,
+            ))
+            .id();
         entities.push(entity);
 
         // Left border
-        let entity = commands.spawn((
-            Sprite {
-                color: border_color,
-                custom_size: Some(Vec2::new(border_thickness, tile_size)),
-                ..default()
-            },
-            Transform::from_xyz(world_x - tile_size / 2.0 + border_thickness / 2.0, world_y, 181.0),
-            TerrainPreviewHighlight,
-        )).id();
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: border_color,
+                    custom_size: Some(Vec2::new(border_thickness, tile_size)),
+                    ..default()
+                },
+                Transform::from_xyz(
+                    world_x - tile_size / 2.0 + border_thickness / 2.0,
+                    world_y,
+                    181.0,
+                ),
+                TerrainPreviewHighlight,
+            ))
+            .id();
         entities.push(entity);
 
         // Right border
-        let entity = commands.spawn((
-            Sprite {
-                color: border_color,
-                custom_size: Some(Vec2::new(border_thickness, tile_size)),
-                ..default()
-            },
-            Transform::from_xyz(world_x + tile_size / 2.0 - border_thickness / 2.0, world_y, 181.0),
-            TerrainPreviewHighlight,
-        )).id();
+        let entity = commands
+            .spawn((
+                Sprite {
+                    color: border_color,
+                    custom_size: Some(Vec2::new(border_thickness, tile_size)),
+                    ..default()
+                },
+                Transform::from_xyz(
+                    world_x + tile_size / 2.0 - border_thickness / 2.0,
+                    world_y,
+                    181.0,
+                ),
+                TerrainPreviewHighlight,
+            ))
+            .id();
         entities.push(entity);
 
         // Store in cache
@@ -1121,7 +1169,11 @@ fn sync_entity_rendering(
     }
 
     // Spawn or update sprites for entities on the selected Object layer
-    for entity in level.entities.iter().filter(|e| layer_entity_ids.contains(&e.id)) {
+    for entity in level
+        .entities
+        .iter()
+        .filter(|e| layer_entity_ids.contains(&e.id))
+    {
         let key = (level_id, entity.id);
         let x = entity.position[0];
         let y = entity.position[1];
@@ -1131,9 +1183,7 @@ fn sync_entity_rendering(
         let color = type_def
             .map(|td| parse_hex_color(&td.color))
             .unwrap_or(Color::srgba(0.4, 0.8, 0.4, 0.8)); // Default green
-        let entity_size = type_def
-            .and_then(|td| td.marker_size)
-            .unwrap_or(16) as f32;
+        let entity_size = type_def.and_then(|td| td.marker_size).unwrap_or(16) as f32;
 
         if let Some(&sprite_entity) = entity_render_state.entity_sprites.get(&key) {
             // Update position and color of existing sprite
@@ -1163,7 +1213,9 @@ fn sync_entity_rendering(
                     },
                 ))
                 .id();
-            entity_render_state.entity_sprites.insert(key, sprite_entity);
+            entity_render_state
+                .entity_sprites
+                .insert(key, sprite_entity);
         }
     }
 
@@ -1187,7 +1239,10 @@ fn sync_entity_rendering(
                     .spawn((
                         Sprite {
                             color: Color::srgba(1.0, 1.0, 0.0, 0.5), // Yellow highlight
-                            custom_size: Some(Vec2::new(sel_entity_size + 8.0, sel_entity_size + 8.0)),
+                            custom_size: Some(Vec2::new(
+                                sel_entity_size + 8.0,
+                                sel_entity_size + 8.0,
+                            )),
                             ..default()
                         },
                         Transform::from_xyz(entity.position[0], entity.position[1], 49.0),

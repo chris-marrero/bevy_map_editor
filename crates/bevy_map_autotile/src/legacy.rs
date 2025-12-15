@@ -7,13 +7,13 @@ use crate::config::LegacyTerrainType;
 
 /// Legacy neighbor direction flags for bitmask calculation
 pub mod neighbors {
-    pub const N: u8 = 0b0000_0001;  // North
+    pub const N: u8 = 0b0000_0001; // North
     pub const NE: u8 = 0b0000_0010; // Northeast (corner)
-    pub const E: u8 = 0b0000_0100;  // East
+    pub const E: u8 = 0b0000_0100; // East
     pub const SE: u8 = 0b0000_1000; // Southeast (corner)
-    pub const S: u8 = 0b0001_0000;  // South
+    pub const S: u8 = 0b0001_0000; // South
     pub const SW: u8 = 0b0010_0000; // Southwest (corner)
-    pub const W: u8 = 0b0100_0000;  // West
+    pub const W: u8 = 0b0100_0000; // West
     pub const NW: u8 = 0b1000_0000; // Northwest (corner)
 }
 

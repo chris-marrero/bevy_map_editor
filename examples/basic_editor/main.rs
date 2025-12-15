@@ -4,8 +4,8 @@
 //!
 //! Run with: cargo run --example basic_editor -p bevy_map_editor_examples
 
-use bevy::prelude::*;
 use bevy::asset::AssetPlugin;
+use bevy::prelude::*;
 use bevy_map_editor::EditorPlugin;
 use std::path::PathBuf;
 
@@ -15,19 +15,20 @@ fn main() {
     let assets_path = get_assets_path();
 
     App::new()
-        .add_plugins(DefaultPlugins
-            .set(WindowPlugin {
-                primary_window: Some(Window {
-                    title: "bevy_map_editor - Basic Editor Example".to_string(),
-                    resolution: (1280, 720).into(),
+        .add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        title: "bevy_map_editor - Basic Editor Example".to_string(),
+                        resolution: (1280, 720).into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .set(AssetPlugin {
+                    file_path: assets_path.to_string_lossy().to_string(),
                     ..default()
                 }),
-                ..default()
-            })
-            .set(AssetPlugin {
-                file_path: assets_path.to_string_lossy().to_string(),
-                ..default()
-            })
         )
         .add_plugins(EditorPlugin::new().with_assets_path(&assets_path))
         .run();

@@ -50,11 +50,17 @@ pub fn render_menu_bar(
                 let can_undo = history.map_or(false, |h| h.can_undo());
                 let can_redo = history.map_or(false, |h| h.can_redo());
 
-                if ui.add_enabled(can_undo, egui::Button::new("Undo")).clicked() {
+                if ui
+                    .add_enabled(can_undo, egui::Button::new("Undo"))
+                    .clicked()
+                {
                     editor_state.pending_action = Some(PendingAction::Undo);
                     ui.close();
                 }
-                if ui.add_enabled(can_redo, egui::Button::new("Redo")).clicked() {
+                if ui
+                    .add_enabled(can_redo, egui::Button::new("Redo"))
+                    .clicked()
+                {
                     editor_state.pending_action = Some(PendingAction::Redo);
                     ui.close();
                 }
@@ -68,7 +74,10 @@ pub fn render_menu_bar(
                     ui.close();
                 }
                 let has_clipboard = clipboard.map_or(false, |c| c.has_content());
-                if ui.add_enabled(has_clipboard, egui::Button::new("Paste")).clicked() {
+                if ui
+                    .add_enabled(has_clipboard, egui::Button::new("Paste"))
+                    .clicked()
+                {
                     editor_state.pending_action = Some(PendingAction::Paste);
                     ui.close();
                 }
@@ -81,19 +90,31 @@ pub fn render_menu_bar(
 
             // View menu
             ui.menu_button("View", |ui| {
-                if ui.checkbox(&mut ui_state.show_tree_view, "Project Tree").clicked() {
+                if ui
+                    .checkbox(&mut ui_state.show_tree_view, "Project Tree")
+                    .clicked()
+                {
                     ui.close();
                 }
-                if ui.checkbox(&mut ui_state.show_inspector, "Inspector").clicked() {
+                if ui
+                    .checkbox(&mut ui_state.show_inspector, "Inspector")
+                    .clicked()
+                {
                     ui.close();
                 }
                 ui.separator();
-                if ui.checkbox(&mut editor_state.show_grid, "Show Grid").clicked() {
+                if ui
+                    .checkbox(&mut editor_state.show_grid, "Show Grid")
+                    .clicked()
+                {
                     ui.close();
                 }
                 // Snapping submenu (Tiled-style)
                 ui.menu_button("Snapping", |ui| {
-                    if ui.checkbox(&mut editor_state.snap_to_grid, "Snap to Grid").clicked() {
+                    if ui
+                        .checkbox(&mut editor_state.snap_to_grid, "Snap to Grid")
+                        .clicked()
+                    {
                         ui.close();
                     }
                 });

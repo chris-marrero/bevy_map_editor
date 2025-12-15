@@ -2,41 +2,41 @@
 //!
 //! This module provides all the UI panels, dialogs, and widgets for the editor.
 
-mod menu_bar;
-mod toolbar;
-mod inspector;
-mod tree_view;
-mod tileset;
-mod dialogs;
-mod schema_editor;
-mod terrain;
-mod tileset_editor;
-mod terrain_palette;
 mod animation_editor;
+mod dialogs;
 mod dialogue_editor;
 mod entity_palette;
+mod inspector;
+mod menu_bar;
+mod schema_editor;
+mod terrain;
+mod terrain_palette;
+mod tileset;
+mod tileset_editor;
+mod toolbar;
+mod tree_view;
 
-pub use menu_bar::*;
-pub use toolbar::{render_toolbar, EditorTool, ToolMode};
-pub use inspector::{render_inspector, InspectorResult, Selection, get_default_value};
-pub use tree_view::{render_tree_view, TreeViewResult};
-pub use tileset::{render_tileset_palette, render_tileset_palette_with_cache};
+pub use animation_editor::{render_animation_editor, AnimationEditorResult, SpriteEditorState};
 pub use dialogs::*;
-pub use schema_editor::{render_schema_editor, SchemaEditorState};
-pub use tileset_editor::{render_tileset_editor, TilesetEditorState};
-pub use terrain_palette::{render_terrain_palette, TerrainPaintState};
-pub use animation_editor::{render_animation_editor, SpriteEditorState, AnimationEditorResult};
-pub use dialogue_editor::{render_dialogue_editor, DialogueEditorState, DialogueEditorResult};
+pub use dialogue_editor::{render_dialogue_editor, DialogueEditorResult, DialogueEditorState};
 pub use entity_palette::{render_entity_palette, EntityPaintState};
+pub use inspector::{get_default_value, render_inspector, InspectorResult, Selection};
+pub use menu_bar::*;
+pub use schema_editor::{render_schema_editor, SchemaEditorState};
+pub use terrain_palette::{render_terrain_palette, TerrainPaintState};
+pub use tileset::{render_tileset_palette, render_tileset_palette_with_cache};
+pub use tileset_editor::{render_tileset_editor, TilesetEditorState};
+pub use toolbar::{render_toolbar, EditorTool, ToolMode};
+pub use tree_view::{render_tree_view, TreeViewResult};
 
-use std::collections::HashMap;
-use std::path::PathBuf;
 use bevy::prelude::*;
 use bevy_egui::{egui, EguiContexts, EguiPrimaryContextPass, EguiTextureHandle};
+use std::collections::HashMap;
+use std::path::PathBuf;
 use uuid::Uuid;
 
 use crate::commands::{CommandHistory, TileClipboard};
-use crate::project::{Project, DataInstance};
+use crate::project::{DataInstance, Project};
 use crate::render::RenderState;
 use crate::EditorState;
 
@@ -98,11 +98,14 @@ impl Plugin for EditorUiPlugin {
         app.init_resource::<UiState>()
             .init_resource::<SpritesheetTextureCache>()
             .init_resource::<TilesetTextureCache>()
-            .add_systems(Update, (
-                load_tileset_textures,
-                load_spritesheet_textures,
-                process_edit_actions,
-            ))
+            .add_systems(
+                Update,
+                (
+                    load_tileset_textures,
+                    load_spritesheet_textures,
+                    process_edit_actions,
+                ),
+            )
             .add_systems(EguiPrimaryContextPass, render_ui);
     }
 }
@@ -143,17 +146,26 @@ fn load_tileset_textures(
     }
 
     // Collect all tileset images to process
-    let images_to_process: Vec<_> = project.tilesets.iter()
+    let images_to_process: Vec<_> = project
+        .tilesets
+        .iter()
         .flat_map(|tileset| {
             let tileset_id = tileset.id;
             let tile_size = tileset.tile_size;
-            tileset.images.iter().enumerate().map(move |(img_idx, image)| {
-                (tileset_id, img_idx, image.id, image.path.clone(), tile_size)
-            })
+            tileset
+                .images
+                .iter()
+                .enumerate()
+                .map(move |(img_idx, image)| {
+                    (tileset_id, img_idx, image.id, image.path.clone(), tile_size)
+                })
         })
         .filter(|(_, _, img_id, _, _)| {
-            !cache.loaded.contains_key(img_id) &&
-            !matches!(cache.load_states.get(img_id), Some(ImageLoadState::Failed(_)))
+            !cache.loaded.contains_key(img_id)
+                && !matches!(
+                    cache.load_states.get(img_id),
+                    Some(ImageLoadState::Failed(_))
+                )
         })
         .collect();
 
@@ -169,10 +181,13 @@ fn load_tileset_textures(
                         let height = image.height() as f32;
 
                         // Register with egui
-                        let texture_id = contexts.add_image(EguiTextureHandle::Strong(handle.clone()));
+                        let texture_id =
+                            contexts.add_image(EguiTextureHandle::Strong(handle.clone()));
 
                         // Cache the result
-                        cache.loaded.insert(image_id, (handle.clone(), texture_id, width, height));
+                        cache
+                            .loaded
+                            .insert(image_id, (handle.clone(), texture_id, width, height));
                         cache.pending.remove(&image_id);
                         cache.load_states.insert(image_id, ImageLoadState::Loaded);
 
@@ -182,8 +197,12 @@ fn load_tileset_textures(
                         }
 
                         // Update image dimensions based on actual size
-                        if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
-                            if let Some(tileset_image) = tileset.images.iter_mut().find(|i| i.id == image_id) {
+                        if let Some(tileset) =
+                            project.tilesets.iter_mut().find(|t| t.id == tileset_id)
+                        {
+                            if let Some(tileset_image) =
+                                tileset.images.iter_mut().find(|i| i.id == image_id)
+                            {
                                 tileset_image.columns = (width as u32) / tile_size.max(1);
                                 tileset_image.rows = (height as u32) / tile_size.max(1);
                             }
@@ -198,7 +217,9 @@ fn load_tileset_textures(
                 LoadState::Failed(_) => {
                     // Mark as failed
                     let error_msg = format!("Failed to load: {}", path.display());
-                    cache.load_states.insert(image_id, ImageLoadState::Failed(error_msg));
+                    cache
+                        .load_states
+                        .insert(image_id, ImageLoadState::Failed(error_msg));
                     cache.pending.remove(&image_id);
 
                     // Track primary image even on failure (for UI display)
@@ -219,7 +240,9 @@ fn load_tileset_textures(
 
         // Start loading the image
         let handle: Handle<Image> = asset_server.load(&image_path);
-        cache.pending.insert(image_id, (PathBuf::from(&image_path), handle));
+        cache
+            .pending
+            .insert(image_id, (PathBuf::from(&image_path), handle));
         cache.load_states.insert(image_id, ImageLoadState::Loading);
 
         // Track primary image for tileset
@@ -238,11 +261,17 @@ fn load_spritesheet_textures(
     images: Res<Assets<Image>>,
 ) {
     // Only process if sprite sheet editor is open and needs texture load
-    if !editor_state.show_sprite_sheet_editor || !editor_state.sprite_sheet_editor_state.needs_texture_load() {
+    if !editor_state.show_sprite_sheet_editor
+        || !editor_state.sprite_sheet_editor_state.needs_texture_load()
+    {
         return;
     }
 
-    let sheet_path = editor_state.sprite_sheet_editor_state.sprite_data.sheet_path.clone();
+    let sheet_path = editor_state
+        .sprite_sheet_editor_state
+        .sprite_data
+        .sheet_path
+        .clone();
     if sheet_path.is_empty() {
         return;
     }
@@ -250,7 +279,9 @@ fn load_spritesheet_textures(
     // Check if already loaded
     if let Some((_, texture_id, width, height)) = cache.loaded.get(&sheet_path) {
         // Already loaded, just update the state
-        editor_state.sprite_sheet_editor_state.set_texture(*texture_id, *width, *height);
+        editor_state
+            .sprite_sheet_editor_state
+            .set_texture(*texture_id, *width, *height);
         return;
     }
 
@@ -261,17 +292,25 @@ fn load_spritesheet_textures(
             let width = image.width() as f32;
             let height = image.height() as f32;
 
-            debug!("Spritesheet loaded: {} -> {}x{} px", sheet_path, width as u32, height as u32);
+            debug!(
+                "Spritesheet loaded: {} -> {}x{} px",
+                sheet_path, width as u32, height as u32
+            );
 
             // Register with egui
             let texture_id = contexts.add_image(EguiTextureHandle::Strong(handle.clone()));
 
             // Cache the result
-            cache.loaded.insert(sheet_path.clone(), (handle.clone(), texture_id, width, height));
+            cache.loaded.insert(
+                sheet_path.clone(),
+                (handle.clone(), texture_id, width, height),
+            );
             cache.pending.remove(&sheet_path);
 
             // Update sprite sheet editor state
-            editor_state.sprite_sheet_editor_state.set_texture(texture_id, width, height);
+            editor_state
+                .sprite_sheet_editor_state
+                .set_texture(texture_id, width, height);
         }
         return;
     }
@@ -296,7 +335,14 @@ fn render_ui(
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
     // Menu bar
-    render_menu_bar(ctx, &mut ui_state, &mut editor_state, &mut project, Some(&history), Some(&clipboard));
+    render_menu_bar(
+        ctx,
+        &mut ui_state,
+        &mut editor_state,
+        &mut project,
+        Some(&history),
+        Some(&clipboard),
+    );
 
     // Toolbar
     render_toolbar(ctx, &mut editor_state);
@@ -340,31 +386,41 @@ fn render_ui(
                             .id_salt("inspector_scroll")
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                inspector_result = render_inspector(ui, &mut editor_state, &mut project);
+                                inspector_result =
+                                    render_inspector(ui, &mut editor_state, &mut project);
                             });
                     });
 
                 // Bottom: Palette (contextual based on tool/layer)
-                egui::CentralPanel::default()
-                    .show_inside(ui, |ui| {
-                        // Determine if we're on an Object layer
-                        let is_object_layer = editor_state.selected_level
-                            .and_then(|lid| project.levels.iter().find(|l| l.id == lid))
-                            .and_then(|level| editor_state.selected_layer.and_then(|idx| level.layers.get(idx)))
-                            .map(|layer| matches!(layer.data, bevy_map_core::LayerData::Objects { .. }))
-                            .unwrap_or(false);
+                egui::CentralPanel::default().show_inside(ui, |ui| {
+                    // Determine if we're on an Object layer
+                    let is_object_layer = editor_state
+                        .selected_level
+                        .and_then(|lid| project.levels.iter().find(|l| l.id == lid))
+                        .and_then(|level| {
+                            editor_state
+                                .selected_layer
+                                .and_then(|idx| level.layers.get(idx))
+                        })
+                        .map(|layer| matches!(layer.data, bevy_map_core::LayerData::Objects { .. }))
+                        .unwrap_or(false);
 
-                        // Show Entity palette when Entity tool is selected or on Object layer
-                        if matches!(editor_state.current_tool, EditorTool::Entity) || is_object_layer {
-                            ui.heading("Entity Types");
-                            ui.separator();
-                            render_entity_palette(ui, &mut editor_state, &project);
-                        } else {
-                            ui.heading("Terrain & Tiles");
-                            ui.separator();
-                            render_terrain_palette(ui, &mut editor_state, &project, Some(&tileset_cache));
-                        }
-                    });
+                    // Show Entity palette when Entity tool is selected or on Object layer
+                    if matches!(editor_state.current_tool, EditorTool::Entity) || is_object_layer {
+                        ui.heading("Entity Types");
+                        ui.separator();
+                        render_entity_palette(ui, &mut editor_state, &project);
+                    } else {
+                        ui.heading("Terrain & Tiles");
+                        ui.separator();
+                        render_terrain_palette(
+                            ui,
+                            &mut editor_state,
+                            &project,
+                            Some(&tileset_cache),
+                        );
+                    }
+                });
             });
     }
 
@@ -510,7 +566,8 @@ fn render_ui(
                     editor_state.selection = Selection::None;
                 } else {
                     // Start multi-select
-                    editor_state.selection = Selection::MultipleDataInstances(vec![*existing_id, inst_id]);
+                    editor_state.selection =
+                        Selection::MultipleDataInstances(vec![*existing_id, inst_id]);
                 }
             }
             _ => {
@@ -524,7 +581,10 @@ fn render_ui(
         match &editor_state.selection {
             Selection::MultipleEntities(items) => {
                 let mut items = items.clone();
-                if let Some(pos) = items.iter().position(|&(l, e)| l == level_id && e == entity_id) {
+                if let Some(pos) = items
+                    .iter()
+                    .position(|&(l, e)| l == level_id && e == entity_id)
+                {
                     items.remove(pos);
                     if items.len() == 1 {
                         editor_state.selection = Selection::Entity(items[0].0, items[0].1);
@@ -544,7 +604,10 @@ fn render_ui(
                     editor_state.selection = Selection::None;
                 } else {
                     // Start multi-select
-                    editor_state.selection = Selection::MultipleEntities(vec![(*existing_level, *existing_entity), (level_id, entity_id)]);
+                    editor_state.selection = Selection::MultipleEntities(vec![
+                        (*existing_level, *existing_entity),
+                        (level_id, entity_id),
+                    ]);
                 }
             }
             _ => {
@@ -584,7 +647,9 @@ fn render_ui(
     // Handle rename data instance (initiate rename mode)
     if let Some(inst_id) = tree_view_result.rename_data_instance {
         if let Some(instance) = project.get_data_instance(inst_id) {
-            let current_name = instance.properties.get("name")
+            let current_name = instance
+                .properties
+                .get("name")
                 .and_then(|v| v.as_string())
                 .unwrap_or_default();
             editor_state.rename_buffer = current_name.to_string();
@@ -596,7 +661,9 @@ fn render_ui(
     if let Some((level_id, entity_id)) = tree_view_result.rename_entity {
         if let Some(level) = project.get_level(level_id) {
             if let Some(entity) = level.entities.iter().find(|e| e.id == entity_id) {
-                let current_name = entity.properties.get("name")
+                let current_name = entity
+                    .properties
+                    .get("name")
                     .and_then(|v| v.as_string())
                     .unwrap_or_default();
                 editor_state.rename_buffer = current_name.to_string();
@@ -633,7 +700,11 @@ fn render_ui(
 
     // Handle rename sprite sheet (initiate rename mode)
     if let Some(sprite_sheet_id) = tree_view_result.rename_sprite_sheet {
-        if let Some(sprite_sheet) = project.sprite_sheets.iter().find(|s| s.id == sprite_sheet_id) {
+        if let Some(sprite_sheet) = project
+            .sprite_sheets
+            .iter()
+            .find(|s| s.id == sprite_sheet_id)
+        {
             editor_state.rename_buffer = sprite_sheet.name.clone();
             editor_state.renaming_item = Some(crate::RenamingItem::SpriteSheet(sprite_sheet_id));
         }
@@ -652,13 +723,17 @@ fn render_ui(
         match &editor_state.renaming_item {
             Some(crate::RenamingItem::DataInstance(inst_id)) => {
                 if let Some(instance) = project.get_data_instance_mut(*inst_id) {
-                    instance.properties.insert("name".to_string(), bevy_map_core::Value::String(new_name));
+                    instance
+                        .properties
+                        .insert("name".to_string(), bevy_map_core::Value::String(new_name));
                 }
             }
             Some(crate::RenamingItem::Entity(level_id, entity_id)) => {
                 if let Some(level) = project.get_level_mut(*level_id) {
                     if let Some(entity) = level.entities.iter_mut().find(|e| e.id == *entity_id) {
-                        entity.properties.insert("name".to_string(), bevy_map_core::Value::String(new_name));
+                        entity
+                            .properties
+                            .insert("name".to_string(), bevy_map_core::Value::String(new_name));
                     }
                 }
             }
@@ -680,12 +755,17 @@ fn render_ui(
                 }
             }
             Some(crate::RenamingItem::SpriteSheet(sprite_sheet_id)) => {
-                if let Some(sprite_sheet) = project.sprite_sheets.iter_mut().find(|s| s.id == *sprite_sheet_id) {
+                if let Some(sprite_sheet) = project
+                    .sprite_sheets
+                    .iter_mut()
+                    .find(|s| s.id == *sprite_sheet_id)
+                {
                     sprite_sheet.name = new_name;
                 }
             }
             Some(crate::RenamingItem::Dialogue(dialogue_id)) => {
-                if let Some(dialogue) = project.dialogues.iter_mut().find(|d| d.id == *dialogue_id) {
+                if let Some(dialogue) = project.dialogues.iter_mut().find(|d| d.id == *dialogue_id)
+                {
                     dialogue.name = new_name;
                 }
             }
@@ -717,15 +797,19 @@ fn render_ui(
                 editor_state.selected_layer = Some(level.layers.len() - 1);
             }
         } else {
-            editor_state.error_message = Some("Cannot create tile layer: No tilesets available. Create a tileset first.".to_string());
+            editor_state.error_message = Some(
+                "Cannot create tile layer: No tilesets available. Create a tileset first."
+                    .to_string(),
+            );
         }
     }
 
     if let Some(level_id) = tree_view_result.add_object_layer {
         if let Some(level) = project.get_level_mut(level_id) {
-            let layer = bevy_map_core::Layer::new_object_layer(
-                format!("Object Layer {}", level.layers.len() + 1),
-            );
+            let layer = bevy_map_core::Layer::new_object_layer(format!(
+                "Object Layer {}",
+                level.layers.len() + 1
+            ));
             level.layers.push(layer);
             editor_state.selected_layer = Some(level.layers.len() - 1);
         }
@@ -802,7 +886,12 @@ fn render_ui(
 
     // Handle tileset duplication
     if let Some(tileset_id) = tree_view_result.duplicate_tileset {
-        if let Some(original) = project.tilesets.iter().find(|t| t.id == tileset_id).cloned() {
+        if let Some(original) = project
+            .tilesets
+            .iter()
+            .find(|t| t.id == tileset_id)
+            .cloned()
+        {
             let mut duplicate = original;
             duplicate.id = Uuid::new_v4();
             duplicate.name = format!("{} (Copy)", duplicate.name);
@@ -834,9 +923,13 @@ fn render_ui(
         editor_state.selection = Selection::SpriteSheet(id);
     }
 
-    if let Some(id) = tree_view_result.edit_sprite_sheet.or(inspector_result.edit_sprite_sheet) {
+    if let Some(id) = tree_view_result
+        .edit_sprite_sheet
+        .or(inspector_result.edit_sprite_sheet)
+    {
         if let Some(sprite_sheet) = project.get_sprite_sheet(id) {
-            editor_state.sprite_sheet_editor_state = SpriteEditorState::from_sprite_data(sprite_sheet.clone());
+            editor_state.sprite_sheet_editor_state =
+                SpriteEditorState::from_sprite_data(sprite_sheet.clone());
             editor_state.sprite_sheet_editor_asset_id = Some(id);
             editor_state.show_sprite_sheet_editor = true;
         }
@@ -862,15 +955,22 @@ fn render_ui(
 
     // Handle dialogue actions from tree view
     if tree_view_result.create_dialogue {
-        let dialogue = bevy_map_dialogue::DialogueTree::new(format!("New Dialogue {}", project.dialogues.len() + 1));
+        let dialogue = bevy_map_dialogue::DialogueTree::new(format!(
+            "New Dialogue {}",
+            project.dialogues.len() + 1
+        ));
         let id = dialogue.id.clone();
         project.add_dialogue(dialogue);
         editor_state.selection = Selection::Dialogue(id);
     }
 
-    if let Some(id) = tree_view_result.edit_dialogue.or(inspector_result.edit_dialogue) {
+    if let Some(id) = tree_view_result
+        .edit_dialogue
+        .or(inspector_result.edit_dialogue)
+    {
         if let Some(dialogue) = project.get_dialogue(&id) {
-            editor_state.dialogue_editor_state = DialogueEditorState::from_dialogue(dialogue.clone());
+            editor_state.dialogue_editor_state =
+                DialogueEditorState::from_dialogue(dialogue.clone());
             editor_state.dialogue_editor_asset_id = Some(id.clone());
             editor_state.show_dialogue_editor = true;
         }
@@ -947,7 +1047,10 @@ fn render_ui(
                 let relative_path = assets_base_path.to_relative(std::path::Path::new(&path));
                 let relative_path_str = relative_path.to_string_lossy().to_string();
                 editor_state.sprite_sheet_editor_state.sheet_path_input = relative_path_str.clone();
-                editor_state.sprite_sheet_editor_state.sprite_data.sheet_path = relative_path_str;
+                editor_state
+                    .sprite_sheet_editor_state
+                    .sprite_data
+                    .sheet_path = relative_path_str;
                 editor_state.sprite_sheet_editor_state.clear_texture();
             }
         }

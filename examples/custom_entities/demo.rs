@@ -88,12 +88,17 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn((Camera2d, Transform::from_xyz(64.0, 64.0, 0.0)));
 
     // Load and spawn map - ONE LINE! Entities are auto-spawned based on registered types.
-    commands.spawn(MapHandle(asset_server.load("maps/custom_entities_demo.map.json")));
+    commands.spawn(MapHandle(
+        asset_server.load("maps/custom_entities_demo.map.json"),
+    ));
 
     // Spawn info display
     commands.spawn((
         Text::new("Custom Entities Demo\n\nLoading..."),
-        TextFont { font_size: 16.0, ..default() },
+        TextFont {
+            font_size: 16.0,
+            ..default()
+        },
         TextColor(Color::WHITE),
         Node {
             position_type: PositionType::Absolute,
@@ -118,13 +123,34 @@ fn handle_input(
     if keyboard.just_pressed(KeyCode::Space) {
         info!("=== Entity List ===");
         for (e, npc, t) in npcs.iter() {
-            info!("{:?} at {:?}: {} HP:{} Lvl:{}", e, t.translation.xy(), npc.name, npc.health, npc.level);
+            info!(
+                "{:?} at {:?}: {} HP:{} Lvl:{}",
+                e,
+                t.translation.xy(),
+                npc.name,
+                npc.health,
+                npc.level
+            );
         }
         for (e, chest, t) in chests.iter() {
-            info!("{:?} at {:?}: {} tier:{} locked:{}", e, t.translation.xy(), chest.loot_table, chest.tier, chest.locked);
+            info!(
+                "{:?} at {:?}: {} tier:{} locked:{}",
+                e,
+                t.translation.xy(),
+                chest.loot_table,
+                chest.tier,
+                chest.locked
+            );
         }
         for (e, item, t) in items.iter() {
-            info!("{:?} at {:?}: {} x{} quest:{}", e, t.translation.xy(), item.name, item.quantity, item.quest_item);
+            info!(
+                "{:?} at {:?}: {} x{} quest:{}",
+                e,
+                t.translation.xy(),
+                item.name,
+                item.quantity,
+                item.quest_item
+            );
         }
     }
 
@@ -140,10 +166,16 @@ fn update_display(
     items: Query<&Item>,
     mut display_query: Query<&mut Text, With<InfoDisplay>>,
 ) {
-    let Ok(mut text) = display_query.single_mut() else { return };
+    let Ok(mut text) = display_query.single_mut() else {
+        return;
+    };
 
     let filter_name = match filter.current {
-        0 => "All", 1 => "NPCs", 2 => "Chests", 3 => "Items", _ => "?"
+        0 => "All",
+        1 => "NPCs",
+        2 => "Chests",
+        3 => "Items",
+        _ => "?",
     };
 
     let mut display = format!(
@@ -154,7 +186,10 @@ fn update_display(
     if filter.current == 0 || filter.current == 1 {
         display.push_str(&format!("NPCs ({})\n", npcs.iter().count()));
         for npc in npcs.iter() {
-            display.push_str(&format!("  {} HP:{} Lvl:{}\n", npc.name, npc.health, npc.level));
+            display.push_str(&format!(
+                "  {} HP:{} Lvl:{}\n",
+                npc.name, npc.health, npc.level
+            ));
         }
     }
 
@@ -162,7 +197,10 @@ fn update_display(
         display.push_str(&format!("\nChests ({})\n", chests.iter().count()));
         for chest in chests.iter() {
             let lock = if chest.locked { "LOCKED" } else { "open" };
-            display.push_str(&format!("  {} T{} ({})\n", chest.loot_table, chest.tier, lock));
+            display.push_str(&format!(
+                "  {} T{} ({})\n",
+                chest.loot_table, chest.tier, lock
+            ));
         }
     }
 
