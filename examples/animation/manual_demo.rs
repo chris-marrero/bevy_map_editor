@@ -9,10 +9,7 @@
 //! - More complex initialization logic
 //!
 //! Controls:
-//! - 1: Play "walk" animation
-//! - 2: Play "croak" animation
-//! - 3: Play "tongue" animation
-//! - 4: Play "hit" animation
+//! - 1: Play "walk_down" animation
 //! - Space: Stop animation
 //!
 //! Run with: cargo run --example animation_manual_demo -p bevy_map_editor_examples
@@ -67,7 +64,7 @@ fn setup(
 
     // HUD
     commands.spawn((
-        Text::new("Animation Manual Demo\n\nManual Loading Approach\n\n1-4: Play animations\nSpace: Stop\n\nLoading..."),
+        Text::new("Animation Manual Demo\n\nManual Loading Approach\n\n1: Play walk_down\nSpace: Stop\n\nLoading..."),
         TextFont { font_size: 20.0, ..default() },
         TextColor(Color::WHITE),
         Node {
@@ -106,8 +103,8 @@ fn setup_sprite_when_ready(
     // =========================================================================
     // MANUAL: Get the sprite sheet from the project
     // =========================================================================
-    let Some(sprite_data) = project.sprite_sheet_by_name("Frog") else {
-        warn!("Sprite sheet 'Frog' not found in project");
+    let Some(sprite_data) = project.sprite_sheet_by_name("Slime") else {
+        warn!("Sprite sheet 'Slime' not found in project");
         return;
     };
 
@@ -119,7 +116,7 @@ fn setup_sprite_when_ready(
 
     // Create the animated sprite component
     let mut animated = AnimatedSprite::new(sprite_data_handle);
-    animated.play("walk");
+    animated.play("walk_down");
 
     // =========================================================================
     // MANUAL: Spawn with full control over all properties
@@ -149,13 +146,7 @@ fn setup_sprite_when_ready(
 
 fn handle_input(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query<&mut AnimatedSprite>) {
     let animation = if keyboard.just_pressed(KeyCode::Digit1) {
-        Some("walk")
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
-        Some("croak")
-    } else if keyboard.just_pressed(KeyCode::Digit3) {
-        Some("tongue")
-    } else if keyboard.just_pressed(KeyCode::Digit4) {
-        Some("hit")
+        Some("walk_down")
     } else {
         None
     };
@@ -196,7 +187,7 @@ fn update_hud(
         "Animation Manual Demo\n\n\
         Manual Loading Approach\n\n\
         Status: {}\n\n\
-        1: walk  2: croak  3: tongue  4: hit\n\
+        1: walk_down\n\
         Space: Stop",
         status
     ));

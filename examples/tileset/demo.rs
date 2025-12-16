@@ -56,7 +56,7 @@ fn setup(
     commands.spawn((Camera2d, Transform::from_xyz(64.0, 64.0, 0.0)));
 
     // Load and spawn map - ONE LINE! Hot-reload works automatically.
-    let map_handle = asset_server.load("maps/tileset_demo.map.json");
+    let map_handle = asset_server.load("maps/example_project.map.json");
     cursor_state.map_handle = Some(map_handle.clone());
     commands.spawn(MapHandle(map_handle));
 

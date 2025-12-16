@@ -98,11 +98,11 @@ pub use bevy_map_dialogue::{
 
 // Re-export key animation types for convenience
 pub use bevy_map_animation::{
-    AnimatedSprite, AnimationCustomEvent, AnimationDef, AnimationEventExt,
-    AnimationParticleEvent, AnimationSoundEvent, AnimationTrigger, AnimationTriggerEvent,
-    AnimationTriggerRegistry, AnimationTriggerType, AnimationWindow, AnimationWindowEvent,
-    AnimationWindowRegistry, AnimationWindowType, LoopMode, SpriteAnimationPlugin, SpriteData,
-    TriggerPayload, WindowPhase, WindowTracker,
+    AnimatedSprite, AnimationCustomEvent, AnimationDef, AnimationEventExt, AnimationParticleEvent,
+    AnimationSoundEvent, AnimationTrigger, AnimationTriggerEvent, AnimationTriggerRegistry,
+    AnimationTriggerType, AnimationTriggered, AnimationWindow, AnimationWindowChanged,
+    AnimationWindowEvent, AnimationWindowRegistry, AnimationWindowType, LoopMode,
+    SpriteAnimationPlugin, SpriteData, TriggerPayload, WindowPhase, WindowTracker,
 };
 
 /// Plugin for runtime map rendering

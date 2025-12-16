@@ -897,13 +897,15 @@ fn paint_tile(
         return;
     }
 
-    // Get tile size from the selected tileset
+    // Get tile size from the selected tileset and collect valid tileset IDs
+    // (collect before mutable borrow of level)
     let tile_size = project
         .tilesets
         .iter()
         .find(|t| t.id == selected_tileset)
         .map(|t| t.tile_size as f32)
         .unwrap_or(32.0);
+    let valid_tileset_ids: HashSet<_> = project.tilesets.iter().map(|t| t.id).collect();
 
     // Convert world position to tile coordinates (Y is flipped in bevy_ecs_tilemap)
     let tile_x = (world_pos.x / tile_size).floor() as i32;
@@ -932,8 +934,28 @@ fn paint_tile(
         .map(|layer| (layer_has_tiles(layer), get_layer_tileset_id(layer)))
         .unwrap_or((false, None));
 
+    // Check if the layer's tileset actually exists in the project
+    let tileset_exists = layer_tileset
+        .map(|id| valid_tileset_ids.contains(&id))
+        .unwrap_or(false);
+
     if has_tiles {
-        if layer_tileset != Some(selected_tileset) {
+        if !tileset_exists {
+            // Self-healing: layer has orphaned tileset - clear tiles and reassign
+            warn!(
+                "Layer has tiles from a deleted tileset. Clearing orphaned data and assigning new tileset."
+            );
+            if let Some(layer) = level.layers.get_mut(layer_idx) {
+                if let LayerData::Tiles { tileset_id, tiles } = &mut layer.data {
+                    // Clear all orphaned tiles
+                    tiles.iter_mut().for_each(|t| *t = None);
+                    // Assign the selected tileset
+                    *tileset_id = selected_tileset;
+                }
+            }
+            // Continue with painting (don't return)
+        } else if layer_tileset != Some(selected_tileset) {
+            // Different valid tileset - block painting
             return;
         }
     } else {

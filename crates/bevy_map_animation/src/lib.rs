@@ -526,7 +526,10 @@ impl SpriteData {
 }
 
 /// Component for playing sprite animations
+///
+/// Automatically requires [`WindowTracker`] component for window event tracking.
 #[derive(Component, Debug, Clone, Default, Reflect)]
+#[require(WindowTracker)]
 pub struct AnimatedSprite {
     /// Handle to the sprite data asset
     #[reflect(ignore)]
@@ -573,8 +576,8 @@ impl AnimatedSprite {
 
 /// Tracks active animation windows for an entity
 ///
-/// Add this component to entities with AnimatedSprite to enable window tracking.
-/// Without this component, only one-shot triggers will fire, not window events.
+/// This component is automatically added when [`AnimatedSprite`] is inserted (via `#[require]`).
+/// It tracks which windows are currently active to properly fire Begin/Tick/End events.
 #[derive(Component, Debug, Clone, Default)]
 pub struct WindowTracker {
     /// IDs of currently active windows
@@ -652,6 +655,68 @@ pub struct AnimationCustomEvent {
     pub event_name: String,
     /// Optional key-value parameters
     pub params: HashMap<String, Value>,
+}
+
+// ============================================================================
+// Entity-Scoped Observer Events (for use with .observe())
+// ============================================================================
+
+/// Entity-scoped event fired when an animation trigger fires.
+///
+/// Use this with Bevy's Observer pattern for entity-specific handling:
+///
+/// ```rust,ignore
+/// commands.spawn((AnimatedSpriteHandle::new(...), Transform::default()))
+///     .observe(|trigger: Trigger<AnimationTriggered>| {
+///         info!("Trigger '{}' fired!", trigger.event().name);
+///     });
+/// ```
+#[derive(EntityEvent, Debug, Clone)]
+pub struct AnimationTriggered {
+    /// The entity this event targets
+    pub entity: Entity,
+    /// Name of the trigger
+    pub name: String,
+    /// The trigger ID
+    pub trigger_id: Uuid,
+    /// Animation name
+    pub animation: String,
+    /// Time in animation when trigger fired (ms)
+    pub time_ms: u32,
+    /// The payload data
+    pub payload: TriggerPayload,
+}
+
+/// Entity-scoped event fired when an animation window changes phase.
+///
+/// Use this with Bevy's Observer pattern for entity-specific handling:
+///
+/// ```rust,ignore
+/// commands.spawn((AnimatedSpriteHandle::new(...), Transform::default()))
+///     .observe(|trigger: Trigger<AnimationWindowChanged>| {
+///         match trigger.event().phase {
+///             WindowPhase::Begin => enable_hitbox(),
+///             WindowPhase::End => disable_hitbox(),
+///             _ => {}
+///         }
+///     });
+/// ```
+#[derive(EntityEvent, Debug, Clone)]
+pub struct AnimationWindowChanged {
+    /// The entity this event targets
+    pub entity: Entity,
+    /// Name of the window
+    pub name: String,
+    /// The window ID
+    pub window_id: Uuid,
+    /// Animation name
+    pub animation: String,
+    /// Current phase (Begin, Tick, or End)
+    pub phase: WindowPhase,
+    /// Progress through the window (0.0 - 1.0), only meaningful for Tick
+    pub progress: f32,
+    /// The payload data
+    pub payload: TriggerPayload,
 }
 
 // ============================================================================
@@ -769,7 +834,9 @@ impl AnimationTriggerRegistry {
     {
         self.dispatchers.insert(
             T::trigger_name().to_string(),
-            Box::new(TypedTriggerDispatcher::<T> { _marker: PhantomData }),
+            Box::new(TypedTriggerDispatcher::<T> {
+                _marker: PhantomData,
+            }),
         );
     }
 
@@ -847,7 +914,9 @@ impl AnimationWindowRegistry {
     {
         self.dispatchers.insert(
             T::window_name().to_string(),
-            Box::new(TypedWindowDispatcher::<T> { _marker: PhantomData }),
+            Box::new(TypedWindowDispatcher::<T> {
+                _marker: PhantomData,
+            }),
         );
     }
 
@@ -1153,12 +1222,22 @@ fn fire_trigger(
     particle_events: &mut MessageWriter<AnimationParticleEvent>,
     custom_events: &mut MessageWriter<AnimationCustomEvent>,
 ) {
-    // Fire generic trigger event
+    // Fire global Message event (for systems that listen to all entities)
     trigger_events.write(AnimationTriggerEvent {
         entity,
         animation: animation_name.to_string(),
         trigger_id: trigger.id,
         trigger_name: trigger.name.clone(),
+        payload: trigger.payload.clone(),
+    });
+
+    // Fire entity-scoped Observer event (for .observe() handlers)
+    commands.trigger(AnimationTriggered {
+        entity,
+        name: trigger.name.clone(),
+        trigger_id: trigger.id,
+        animation: animation_name.to_string(),
+        time_ms: trigger.time_ms,
         payload: trigger.payload.clone(),
     });
 
@@ -1264,6 +1343,7 @@ fn fire_window_event(
     particle_events: &mut MessageWriter<AnimationParticleEvent>,
     custom_events: &mut MessageWriter<AnimationCustomEvent>,
 ) {
+    // Fire global Message event (for systems that listen to all entities)
     window_events.write(AnimationWindowEvent {
         entity,
         animation: animation_name.to_string(),
@@ -1272,6 +1352,17 @@ fn fire_window_event(
         phase,
         payload: window.payload.clone(),
         progress,
+    });
+
+    // Fire entity-scoped Observer event (for .observe() handlers)
+    commands.trigger(AnimationWindowChanged {
+        entity,
+        name: window.name.clone(),
+        window_id: window.id,
+        animation: animation_name.to_string(),
+        phase,
+        progress,
+        payload: window.payload.clone(),
     });
 
     // Only fire typed events on Begin (not every tick)
@@ -1367,7 +1458,15 @@ fn fire_window_payload_events(
                 params: params.clone(),
             });
             // Also dispatch to registered typed handlers via Bevy Observers
-            window_registry.dispatch(commands, entity, animation_name, phase, progress, event_name, params);
+            window_registry.dispatch(
+                commands,
+                entity,
+                animation_name,
+                phase,
+                progress,
+                event_name,
+                params,
+            );
         }
         TriggerPayload::None => {}
     }

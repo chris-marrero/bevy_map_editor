@@ -241,7 +241,7 @@ pub fn render_animation_editor(
     let mut is_open = true;
 
     // Render floating preview window (separate from main window)
-    render_floating_preview(ctx, state);  // state is already &mut
+    render_floating_preview(ctx, state); // state is already &mut
 
     egui::Window::new("Animation Editor")
         .open(&mut is_open)
@@ -365,7 +365,10 @@ fn render_compact_toolbar(
                         state.sprite_data.animations.keys().cloned().collect();
                     for name in anim_names {
                         if ui
-                            .selectable_label(state.selected_animation.as_ref() == Some(&name), &name)
+                            .selectable_label(
+                                state.selected_animation.as_ref() == Some(&name),
+                                &name,
+                            )
                             .clicked()
                         {
                             state.selected_animation = Some(name.clone());
@@ -467,10 +470,10 @@ fn render_compact_toolbar(
 
         ui.separator();
 
-        // Duration setting (if animation selected)
+        // Frame duration setting (if animation selected)
         if let Some(anim_name) = &state.selected_animation.clone() {
             if let Some(anim) = state.sprite_data.animations.get_mut(anim_name) {
-                ui.label("Dur:");
+                ui.label("Frame Dur:");
                 let mut duration = anim.frame_duration_ms as i32;
                 if ui
                     .add(
@@ -607,9 +610,12 @@ fn render_dopesheet(
     let item_row_height = 22.0;
     let section_header_height = 18.0;
     let frames_track_height = 28.0; // Fixed for frames track
-    let windows_track_height = section_header_height + windows.len().max(1) as f32 * item_row_height;
-    let triggers_track_height = section_header_height + triggers.len().max(1) as f32 * item_row_height;
-    let total_height = ruler_height + frames_track_height + windows_track_height + triggers_track_height;
+    let windows_track_height =
+        section_header_height + windows.len().max(1) as f32 * item_row_height;
+    let triggers_track_height =
+        section_header_height + triggers.len().max(1) as f32 * item_row_height;
+    let total_height =
+        ruler_height + frames_track_height + windows_track_height + triggers_track_height;
 
     egui::ScrollArea::both()
         .auto_shrink([false, false])
@@ -628,7 +634,8 @@ fn render_dopesheet(
             let scaled_ruler_font = base_ruler_font * (state.timeline_zoom / 50.0).clamp(0.8, 1.5);
 
             // Time ruler (top)
-            let ruler_rect = egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), ruler_height));
+            let ruler_rect =
+                egui::Rect::from_min_size(rect.min, egui::vec2(rect.width(), ruler_height));
             painter.rect_filled(ruler_rect, 0.0, egui::Color32::from_gray(35));
 
             // Draw time markers
@@ -640,7 +647,10 @@ fn render_dopesheet(
 
                 // Tick line
                 painter.line_segment(
-                    [egui::pos2(x, rect.min.y), egui::pos2(x, rect.min.y + ruler_height)],
+                    [
+                        egui::pos2(x, rect.min.y),
+                        egui::pos2(x, rect.min.y + ruler_height),
+                    ],
                     egui::Stroke::new(1.0, egui::Color32::from_gray(80)),
                 );
 
@@ -659,7 +669,10 @@ fn render_dopesheet(
             for i in 0..=frames.len() {
                 let x = rect.min.x + label_width + i as f32 * frame_width_px;
                 painter.line_segment(
-                    [egui::pos2(x, rect.min.y + ruler_height), egui::pos2(x, rect.max.y)],
+                    [
+                        egui::pos2(x, rect.min.y + ruler_height),
+                        egui::pos2(x, rect.max.y),
+                    ],
                     egui::Stroke::new(1.0, egui::Color32::from_gray(40)),
                 );
             }
@@ -687,7 +700,8 @@ fn render_dopesheet(
                 // Draw alternating row backgrounds for multi-row tracks
                 if track_idx > 0 && *item_count > 0 {
                     for row in 0..*item_count {
-                        let row_y = cumulative_y + section_header_height + row as f32 * item_row_height;
+                        let row_y =
+                            cumulative_y + section_header_height + row as f32 * item_row_height;
                         if row % 2 == 1 {
                             let row_rect = egui::Rect::from_min_size(
                                 egui::pos2(rect.min.x + label_width, row_y),
@@ -726,7 +740,7 @@ fn render_dopesheet(
                 // Draw small rectangle with frame number - LEFT EDGE at start time
                 let key_size = 18.0;
                 let key_rect = egui::Rect::from_min_size(
-                    egui::pos2(x, frames_track_y - key_size / 2.0),  // Left edge at start time, centered vertically
+                    egui::pos2(x, frames_track_y - key_size / 2.0), // Left edge at start time, centered vertically
                     egui::vec2(key_size, key_size),
                 );
                 painter.rect_filled(key_rect, 3.0, egui::Color32::from_rgb(100, 150, 220));
@@ -742,9 +756,14 @@ fn render_dopesheet(
             // Track 1: Windows (bars) - one row per window
             let windows_base_y = rect.min.y + ruler_height + frames_track_height;
             for (row_idx, window) in windows.iter().enumerate() {
-                let row_y = windows_base_y + section_header_height + (row_idx as f32 + 0.5) * item_row_height;
-                let start_x = rect.min.x + label_width + (window.start_ms as f32 / 100.0) * state.timeline_zoom;
-                let end_x = rect.min.x + label_width + (window.end_ms as f32 / 100.0) * state.timeline_zoom;
+                let row_y = windows_base_y
+                    + section_header_height
+                    + (row_idx as f32 + 0.5) * item_row_height;
+                let start_x = rect.min.x
+                    + label_width
+                    + (window.start_ms as f32 / 100.0) * state.timeline_zoom;
+                let end_x =
+                    rect.min.x + label_width + (window.end_ms as f32 / 100.0) * state.timeline_zoom;
                 let bar_height = 16.0;
                 let window_rect = egui::Rect::from_min_max(
                     egui::pos2(start_x, row_y - bar_height / 2.0),
@@ -784,10 +803,15 @@ fn render_dopesheet(
             }
 
             // Track 2: Triggers (diamonds) - one row per trigger
-            let triggers_base_y = rect.min.y + ruler_height + frames_track_height + windows_track_height;
+            let triggers_base_y =
+                rect.min.y + ruler_height + frames_track_height + windows_track_height;
             for (row_idx, trigger) in triggers.iter().enumerate() {
-                let row_y = triggers_base_y + section_header_height + (row_idx as f32 + 0.5) * item_row_height;
-                let x = rect.min.x + label_width + (trigger.time_ms as f32 / 100.0) * state.timeline_zoom;
+                let row_y = triggers_base_y
+                    + section_header_height
+                    + (row_idx as f32 + 0.5) * item_row_height;
+                let x = rect.min.x
+                    + label_width
+                    + (trigger.time_ms as f32 / 100.0) * state.timeline_zoom;
 
                 let is_selected = state.selected_trigger == Some(trigger.id);
                 let base_color = trigger.color.unwrap_or([255, 140, 40]);
@@ -829,9 +853,13 @@ fn render_dopesheet(
             // Draw playhead
             if !frames.is_empty() {
                 let playhead_time = state.preview_frame as f32 * frame_duration_ms as f32;
-                let playhead_x = rect.min.x + label_width + (playhead_time / 100.0) * state.timeline_zoom;
+                let playhead_x =
+                    rect.min.x + label_width + (playhead_time / 100.0) * state.timeline_zoom;
                 painter.line_segment(
-                    [egui::pos2(playhead_x, rect.min.y), egui::pos2(playhead_x, rect.max.y)],
+                    [
+                        egui::pos2(playhead_x, rect.min.y),
+                        egui::pos2(playhead_x, rect.max.y),
+                    ],
                     egui::Stroke::new(2.0, egui::Color32::from_rgb(255, 80, 80)),
                 );
             }
@@ -848,7 +876,8 @@ fn render_dopesheet(
                     let row = (row_rel_y / item_row_height).max(0.0) as usize;
                     (1, row) // Windows track with row
                 } else {
-                    let row_rel_y = rel_y - frames_track_height - windows_track_height - section_header_height;
+                    let row_rel_y =
+                        rel_y - frames_track_height - windows_track_height - section_header_height;
                     let row = (row_rel_y / item_row_height).max(0.0) as usize;
                     (2, row) // Triggers track with row
                 }
@@ -866,7 +895,8 @@ fn render_dopesheet(
                             let mut found = false;
                             if row_idx < windows.len() {
                                 let window = &windows[row_idx];
-                                let start_x = (window.start_ms as f32 / 100.0) * state.timeline_zoom;
+                                let start_x =
+                                    (window.start_ms as f32 / 100.0) * state.timeline_zoom;
                                 let end_x = (window.end_ms as f32 / 100.0) * state.timeline_zoom;
                                 if timeline_x >= start_x - 5.0 && timeline_x <= end_x + 5.0 {
                                     state.selected_window = Some(window.id);
@@ -883,7 +913,8 @@ fn render_dopesheet(
                             let mut found = false;
                             if row_idx < triggers.len() {
                                 let trigger = &triggers[row_idx];
-                                let trigger_x = (trigger.time_ms as f32 / 100.0) * state.timeline_zoom;
+                                let trigger_x =
+                                    (trigger.time_ms as f32 / 100.0) * state.timeline_zoom;
                                 if (timeline_x - trigger_x).abs() < 20.0 {
                                     state.selected_trigger = Some(trigger.id);
                                     state.selected_window = None;
@@ -941,7 +972,8 @@ fn render_dopesheet(
                     }
 
                     // Check for trigger drag (track 2)
-                    if track_idx == 2 && row_idx < triggers.len() && state.dragging_window.is_none() {
+                    if track_idx == 2 && row_idx < triggers.len() && state.dragging_window.is_none()
+                    {
                         let trigger = &triggers[row_idx];
                         let trigger_x = (trigger.time_ms as f32 / 100.0) * state.timeline_zoom;
                         if (timeline_x - trigger_x).abs() < 20.0 {
@@ -963,11 +995,14 @@ fn render_dopesheet(
                     // Drag window
                     if let Some((window_id, handle)) = state.dragging_window {
                         if let Some(anim) = state.sprite_data.animations.get_mut(&anim_name) {
-                            if let Some(window) = anim.windows.iter_mut().find(|w| w.id == window_id) {
+                            if let Some(window) =
+                                anim.windows.iter_mut().find(|w| w.id == window_id)
+                            {
                                 match handle {
                                     DragHandle::Start => {
                                         // Dragging start edge - don't let it exceed end
-                                        window.start_ms = time_ms.min(window.end_ms.saturating_sub(10));
+                                        window.start_ms =
+                                            time_ms.min(window.end_ms.saturating_sub(10));
                                     }
                                     DragHandle::End => {
                                         // Dragging end edge - don't let it be before start
@@ -975,7 +1010,9 @@ fn render_dopesheet(
                                     }
                                     DragHandle::Body => {
                                         // Move entire window, preserving duration
-                                        let duration = state.drag_original_end.saturating_sub(state.drag_start_time);
+                                        let duration = state
+                                            .drag_original_end
+                                            .saturating_sub(state.drag_start_time);
                                         window.start_ms = time_ms;
                                         window.end_ms = time_ms + duration;
                                     }
@@ -988,7 +1025,9 @@ fn render_dopesheet(
                     // Drag trigger
                     if let Some(trigger_id) = state.dragging_trigger {
                         if let Some(anim) = state.sprite_data.animations.get_mut(&anim_name) {
-                            if let Some(trigger) = anim.triggers.iter_mut().find(|t| t.id == trigger_id) {
+                            if let Some(trigger) =
+                                anim.triggers.iter_mut().find(|t| t.id == trigger_id)
+                            {
                                 trigger.time_ms = time_ms;
                                 result.changed = true;
                             }
@@ -1051,7 +1090,9 @@ fn render_dopesheet(
                         }
                         if ui.button("Duplicate").clicked() {
                             if let Some(anim) = state.sprite_data.animations.get_mut(&anim_name) {
-                                if let Some(w) = anim.windows.iter().find(|w| w.id == window_id).cloned() {
+                                if let Some(w) =
+                                    anim.windows.iter().find(|w| w.id == window_id).cloned()
+                                {
                                     let mut new_window = w.clone();
                                     new_window.id = Uuid::new_v4();
                                     new_window.name = format!("{}_copy", w.name);
@@ -1078,7 +1119,9 @@ fn render_dopesheet(
                         }
                         if ui.button("Duplicate").clicked() {
                             if let Some(anim) = state.sprite_data.animations.get_mut(&anim_name) {
-                                if let Some(t) = anim.triggers.iter().find(|t| t.id == trigger_id).cloned() {
+                                if let Some(t) =
+                                    anim.triggers.iter().find(|t| t.id == trigger_id).cloned()
+                                {
                                     let mut new_trigger = t.clone();
                                     new_trigger.id = Uuid::new_v4();
                                     new_trigger.name = format!("{}_copy", t.name);
@@ -1104,7 +1147,8 @@ fn render_dopesheet(
                         if ui.button("Add Window Here").clicked() {
                             if let Some(anim) = state.sprite_data.animations.get_mut(&anim_name) {
                                 let end_time = time_ms.saturating_add(100);
-                                let new_window = AnimationWindow::new("new_window", time_ms, end_time);
+                                let new_window =
+                                    AnimationWindow::new("new_window", time_ms, end_time);
                                 anim.windows.push(new_window);
                                 result.changed = true;
                             }
@@ -1150,7 +1194,11 @@ fn render_details_panel(
                         ui.label("Time:");
                         let mut time = trigger.time_ms as i32;
                         if ui
-                            .add(egui::DragValue::new(&mut time).range(0..=total_duration as i32).suffix("ms"))
+                            .add(
+                                egui::DragValue::new(&mut time)
+                                    .range(0..=total_duration as i32)
+                                    .suffix("ms"),
+                            )
                             .changed()
                         {
                             trigger.time_ms = time.max(0) as u32;
@@ -1212,7 +1260,11 @@ fn render_details_panel(
                         ui.label("Start:");
                         let mut start = window.start_ms as i32;
                         if ui
-                            .add(egui::DragValue::new(&mut start).range(0..=window.end_ms as i32).suffix("ms"))
+                            .add(
+                                egui::DragValue::new(&mut start)
+                                    .range(0..=window.end_ms as i32)
+                                    .suffix("ms"),
+                            )
                             .changed()
                         {
                             window.start_ms = start.max(0) as u32;
@@ -1222,7 +1274,11 @@ fn render_details_panel(
                         ui.label("End:");
                         let mut end = window.end_ms as i32;
                         if ui
-                            .add(egui::DragValue::new(&mut end).range(window.start_ms as i32..=total_duration as i32).suffix("ms"))
+                            .add(
+                                egui::DragValue::new(&mut end)
+                                    .range(window.start_ms as i32..=total_duration as i32)
+                                    .suffix("ms"),
+                            )
                             .changed()
                         {
                             window.end_ms = end as u32;
@@ -1279,20 +1335,44 @@ fn render_payload_selector(
         .width(80.0)
         .selected_text(current_type)
         .show_ui(ui, |ui| {
-            if ui.selectable_label(matches!(payload, TriggerPayload::None), "None").clicked() {
+            if ui
+                .selectable_label(matches!(payload, TriggerPayload::None), "None")
+                .clicked()
+            {
                 *payload = TriggerPayload::None;
                 result.changed = true;
             }
-            if ui.selectable_label(matches!(payload, TriggerPayload::Sound { .. }), "Sound").clicked() {
-                *payload = TriggerPayload::Sound { path: String::new(), volume: 1.0 };
+            if ui
+                .selectable_label(matches!(payload, TriggerPayload::Sound { .. }), "Sound")
+                .clicked()
+            {
+                *payload = TriggerPayload::Sound {
+                    path: String::new(),
+                    volume: 1.0,
+                };
                 result.changed = true;
             }
-            if ui.selectable_label(matches!(payload, TriggerPayload::Particle { .. }), "Particle").clicked() {
-                *payload = TriggerPayload::Particle { effect: String::new(), offset: (0.0, 0.0) };
+            if ui
+                .selectable_label(
+                    matches!(payload, TriggerPayload::Particle { .. }),
+                    "Particle",
+                )
+                .clicked()
+            {
+                *payload = TriggerPayload::Particle {
+                    effect: String::new(),
+                    offset: (0.0, 0.0),
+                };
                 result.changed = true;
             }
-            if ui.selectable_label(matches!(payload, TriggerPayload::Custom { .. }), "Custom").clicked() {
-                *payload = TriggerPayload::Custom { event_name: String::new(), params: HashMap::new() };
+            if ui
+                .selectable_label(matches!(payload, TriggerPayload::Custom { .. }), "Custom")
+                .clicked()
+            {
+                *payload = TriggerPayload::Custom {
+                    event_name: String::new(),
+                    params: HashMap::new(),
+                };
                 result.changed = true;
             }
         });
@@ -1308,11 +1388,17 @@ fn render_payload_details(
         TriggerPayload::Sound { path, volume } => {
             ui.horizontal(|ui| {
                 ui.label("Path:");
-                if ui.add(egui::TextEdit::singleline(path).desired_width(200.0)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(path).desired_width(200.0))
+                    .changed()
+                {
                     result.changed = true;
                 }
                 ui.label("Vol:");
-                if ui.add(egui::Slider::new(volume, 0.0..=1.0).show_value(false)).changed() {
+                if ui
+                    .add(egui::Slider::new(volume, 0.0..=1.0).show_value(false))
+                    .changed()
+                {
                     result.changed = true;
                 }
             });
@@ -1320,22 +1406,37 @@ fn render_payload_details(
         TriggerPayload::Particle { effect, offset } => {
             ui.horizontal(|ui| {
                 ui.label("Effect:");
-                if ui.add(egui::TextEdit::singleline(effect).desired_width(150.0)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(effect).desired_width(150.0))
+                    .changed()
+                {
                     result.changed = true;
                 }
                 ui.label("Offset:");
-                if ui.add(egui::DragValue::new(&mut offset.0).prefix("X:")).changed() {
+                if ui
+                    .add(egui::DragValue::new(&mut offset.0).prefix("X:"))
+                    .changed()
+                {
                     result.changed = true;
                 }
-                if ui.add(egui::DragValue::new(&mut offset.1).prefix("Y:")).changed() {
+                if ui
+                    .add(egui::DragValue::new(&mut offset.1).prefix("Y:"))
+                    .changed()
+                {
                     result.changed = true;
                 }
             });
         }
-        TriggerPayload::Custom { event_name, params: _ } => {
+        TriggerPayload::Custom {
+            event_name,
+            params: _,
+        } => {
             ui.horizontal(|ui| {
                 ui.label("Event:");
-                if ui.add(egui::TextEdit::singleline(event_name).desired_width(200.0)).changed() {
+                if ui
+                    .add(egui::TextEdit::singleline(event_name).desired_width(200.0))
+                    .changed()
+                {
                     result.changed = true;
                 }
                 ui.label("(params editor coming soon)");
@@ -1416,10 +1517,26 @@ fn render_frame_picker(
                     texture_id,
                     indices: vec![0, 1, 2, 0, 2, 3],
                     vertices: vec![
-                        egui::epaint::Vertex { pos: rect.min, uv: egui::pos2(0.0, 0.0), color: egui::Color32::WHITE },
-                        egui::epaint::Vertex { pos: egui::pos2(rect.max.x, rect.min.y), uv: egui::pos2(u_max, 0.0), color: egui::Color32::WHITE },
-                        egui::epaint::Vertex { pos: rect.max, uv: egui::pos2(u_max, v_max), color: egui::Color32::WHITE },
-                        egui::epaint::Vertex { pos: egui::pos2(rect.min.x, rect.max.y), uv: egui::pos2(0.0, v_max), color: egui::Color32::WHITE },
+                        egui::epaint::Vertex {
+                            pos: rect.min,
+                            uv: egui::pos2(0.0, 0.0),
+                            color: egui::Color32::WHITE,
+                        },
+                        egui::epaint::Vertex {
+                            pos: egui::pos2(rect.max.x, rect.min.y),
+                            uv: egui::pos2(u_max, 0.0),
+                            color: egui::Color32::WHITE,
+                        },
+                        egui::epaint::Vertex {
+                            pos: rect.max,
+                            uv: egui::pos2(u_max, v_max),
+                            color: egui::Color32::WHITE,
+                        },
+                        egui::epaint::Vertex {
+                            pos: egui::pos2(rect.min.x, rect.max.y),
+                            uv: egui::pos2(0.0, v_max),
+                            color: egui::Color32::WHITE,
+                        },
                     ],
                 };
                 painter.add(egui::Shape::mesh(mesh));
@@ -1431,7 +1548,8 @@ fn render_frame_picker(
                     let frame_idx = state.sprite_data.grid_to_frame(col, row);
                     let x = rect.min.x + col as f32 * frame_w;
                     let y = rect.min.y + row as f32 * frame_h;
-                    let frame_rect = egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(frame_w, frame_h));
+                    let frame_rect =
+                        egui::Rect::from_min_size(egui::pos2(x, y), egui::vec2(frame_w, frame_h));
 
                     // Highlight selected frames
                     if state.selected_frames.contains(&frame_idx) {
@@ -1446,7 +1564,10 @@ fn render_frame_picker(
                     painter.rect_stroke(
                         frame_rect,
                         0.0,
-                        egui::Stroke::new(1.0, egui::Color32::from_rgba_unmultiplied(200, 200, 200, 100)),
+                        egui::Stroke::new(
+                            1.0,
+                            egui::Color32::from_rgba_unmultiplied(200, 200, 200, 100),
+                        ),
                         egui::StrokeKind::Middle,
                     );
 
@@ -1473,7 +1594,9 @@ fn render_frame_picker(
                         let frame_idx = state.sprite_data.grid_to_frame(col, row);
                         if ui.input(|i| i.modifiers.ctrl) {
                             // Toggle
-                            if let Some(pos) = state.selected_frames.iter().position(|&f| f == frame_idx) {
+                            if let Some(pos) =
+                                state.selected_frames.iter().position(|&f| f == frame_idx)
+                            {
                                 state.selected_frames.remove(pos);
                             } else {
                                 state.selected_frames.push(frame_idx);
@@ -1500,7 +1623,7 @@ fn render_floating_preview(ctx: &egui::Context, state: &mut AnimationEditorState
 
     let mut show = state.show_preview;
     egui::Window::new("Preview")
-        .open(&mut show)  // X button to close
+        .open(&mut show) // X button to close
         .resizable(true)
         .min_size([100.0, 100.0])
         .default_size([150.0, 180.0])
@@ -1556,8 +1679,9 @@ fn render_floating_preview(ctx: &egui::Context, state: &mut AnimationEditorState
 
             ui.vertical_centered(|ui| {
                 ui.add(
-                    egui::Image::new(egui::load::SizedTexture::new(texture_id, display_size))
-                        .uv(egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1))),
+                    egui::Image::new(egui::load::SizedTexture::new(texture_id, display_size)).uv(
+                        egui::Rect::from_min_max(egui::pos2(u0, v0), egui::pos2(u1, v1)),
+                    ),
                 );
             });
 

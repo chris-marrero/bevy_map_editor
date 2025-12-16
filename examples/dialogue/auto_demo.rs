@@ -147,12 +147,11 @@ fn update_display(
         return;
     };
 
-    let mut display = format!(
-        "Dialogue Auto Demo\n\n\
+    let mut display = "Dialogue Auto Demo\n\n\
         Using DialogueTreeHandle\n\n\
         Space: Start/Advance | A/B/C: Choose\n\n\
         ----------------------------------------\n\n"
-    );
+        .to_string();
 
     if !runner.is_active() {
         display.push_str("Press SPACE to start the dialogue...");

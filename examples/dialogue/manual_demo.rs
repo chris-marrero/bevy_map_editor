@@ -188,12 +188,11 @@ fn update_display(
         return;
     };
 
-    let mut display = format!(
-        "Dialogue Manual Demo\n\n\
+    let mut display = "Dialogue Manual Demo\n\n\
         Manual Loading Approach\n\n\
         Space: Start/Advance | A/B/C: Choose\n\n\
         ----------------------------------------\n\n"
-    );
+        .to_string();
 
     if !runner.is_active() {
         display.push_str("Press SPACE to start the dialogue...");

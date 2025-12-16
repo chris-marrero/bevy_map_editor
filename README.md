@@ -30,7 +30,7 @@ Here's the Tileset Editor:
 
 The below video shows some of the issues currently with autotiling, while I work on fixing them!
 
-![Autotiling](docs/videos/autotiling.mp4)
+![Autotiling](docs/gifs/autotiling.gif)
 
 ### Entity Placement
 Place custom entities with property editing in the inspector panel. As well as define custom Data Types for those entities.
@@ -39,7 +39,7 @@ Place custom entities with property editing in the inspector panel. As well as d
 
 Demo of how easy it is to place/create Custom entities:
 
-![Entity Placement Demo](docs/videos/entities.mp4)
+![Entity Placement Demo](docs/gifs/entities.gif)
 
 ### Dialogue Editor
 Visual node-based dialogue tree editor with Text, Choice, Condition, and Action nodes. See [example](examples/dialogue/auto_demo.rs)
@@ -54,7 +54,7 @@ Spritesheet loading:
 ![Spritesheet Editor](docs/images/spritesheet_editor.png)
 
 Animation Timeline with Trigger/Window events:
-![Animation Editor](docs/videos/animation_editor.mp4)
+![Animation Editor](docs/gifs/animation_editor.gif)
 
 ## Crates
 

@@ -1,32 +1,30 @@
-//! Animation Triggers Demo - Shows triggers/windows from map JSON with text display
+//! Animation Triggers Demo - Observer Pattern
 //!
-//! This example demonstrates:
-//! - Loading animations from a map project file
-//! - Listening to AnimationTriggerEvent and AnimationWindowEvent
-//! - Displaying animation events as text in the UI
+//! This example demonstrates both approaches for handling animation events:
 //!
-//! The "tongue" animation has triggers and windows defined in example_project.map.json:
-//! - Trigger "show_blurb" at 403ms
-//! - Window "enable_hitbox" from 201-701ms
+//! 1. **Observer Pattern** (Entity-Scoped): Using `.observe()` for entity-specific handling
+//! 2. **Message Pattern** (Global): Using `MessageReader` for system-wide handling
+//!
+//! The "walk_down" animation has a trigger defined in example_project.map.json.
 //!
 //! Controls:
-//! - 1: Play "walk" animation
-//! - 2: Play "croak" animation
-//! - 3: Play "tongue" animation (has triggers/windows)
-//! - 4: Play "hit" animation
+//! - 1: Play "walk_down" animation
 //! - Space: Stop animation
 //!
 //! Run with: cargo run --example animation_triggers_demo -p bevy_map_editor_examples
 
 use bevy::prelude::*;
-use bevy_map_animation::{AnimatedSprite, AnimationTriggerEvent, AnimationWindowEvent, WindowPhase, WindowTracker};
+use bevy_map_animation::{
+    AnimatedSprite, AnimationTriggerEvent, AnimationTriggered, AnimationWindowChanged,
+    AnimationWindowEvent, WindowPhase,
+};
 use bevy_map_runtime::{AnimatedSpriteHandle, MapRuntimePlugin};
 
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(WindowPlugin {
             primary_window: Some(Window {
-                title: "Animation Triggers Demo".to_string(),
+                title: "Animation Triggers Demo - Observer Pattern".to_string(),
                 resolution: (800, 600).into(),
                 ..default()
             }),
@@ -35,10 +33,7 @@ fn main() {
         .add_plugins(MapRuntimePlugin)
         .init_resource::<EventLog>()
         .add_systems(Startup, setup)
-        .add_systems(
-            Update,
-            (handle_events, handle_input, update_display),
-        )
+        .add_systems(Update, (handle_global_events, handle_input, update_display))
         .run();
 }
 
@@ -54,29 +49,56 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
     commands.spawn(Camera2d);
 
     // ==========================================================================
-    // ONE LINE: Load animated sprite from map project
+    // OBSERVER PATTERN: Entity-scoped event handling
     // ==========================================================================
-    // AnimatedSpriteHandle handles all the loading automatically:
-    // - Waits for MapProject to load
-    // - Finds sprite sheet by name
-    // - Loads the texture
-    // - Creates AnimatedSprite and Sprite components
-    commands.spawn((
-        AnimatedSpriteHandle::new(
-            asset_server.load("maps/example_project.map.json"),
-            "Frog",
-            "tongue", // Start with tongue animation - it has triggers/windows
+    // Spawn animated sprite and attach observers directly to the entity.
+    // WindowTracker is auto-required by AnimatedSprite - no need to add it!
+    commands
+        .spawn((
+            AnimatedSpriteHandle::new(
+                asset_server.load("maps/example_project.map.json"),
+                "Slime",
+                "walk_down", // Animation with a trigger defined
+            ),
+            Transform::from_xyz(0.0, 50.0, 0.0).with_scale(Vec3::splat(4.0)),
+        ))
+        // Observer for triggers - fires only for THIS entity
+        .observe(
+            |trigger: On<AnimationTriggered>, mut log: ResMut<EventLog>| {
+                let event = trigger.event();
+                log.messages.push(format!(
+                    "[Observer] TRIGGER: '{}' at {}ms ({})",
+                    event.name, event.time_ms, event.animation
+                ));
+                info!(
+                    "Observer received trigger '{}' at {}ms",
+                    event.name, event.time_ms
+                );
+            },
         )
-        .with_scale(4.0),
-        WindowTracker::default(), // Required for window events
-        Transform::from_xyz(0.0, 50.0, 0.0),
-    ));
+        // Observer for window phase changes - fires only for THIS entity
+        .observe(
+            |trigger: On<AnimationWindowChanged>, mut log: ResMut<EventLog>| {
+                let event = trigger.event();
+                // Only log Begin/End, not every Tick
+                if event.phase != WindowPhase::Tick {
+                    log.messages.push(format!(
+                        "[Observer] WINDOW: '{}' {:?} ({})",
+                        event.name, event.phase, event.animation
+                    ));
+                    info!(
+                        "Observer received window '{}' phase {:?}",
+                        event.name, event.phase
+                    );
+                }
+            },
+        );
 
     // Event log display
     commands.spawn((
         Text::new("Loading..."),
         TextFont {
-            font_size: 18.0,
+            font_size: 16.0,
             ..default()
         },
         TextColor(Color::WHITE),
@@ -89,47 +111,44 @@ fn setup(mut commands: Commands, asset_server: Res<AssetServer>) {
         EventDisplay,
     ));
 
-    info!("Triggers Demo - watch events fire during animations!");
+    info!("Triggers Demo - demonstrates Observer pattern for animation events!");
 }
 
-/// Handle trigger and window events via MessageReader
-fn handle_events(
+// ==========================================================================
+// MESSAGE PATTERN: Global event handling (alternative approach)
+// ==========================================================================
+// This system receives ALL animation events from ALL entities.
+// Use this when you need centralized event handling (logging, analytics, etc.)
+fn handle_global_events(
     mut log: ResMut<EventLog>,
     mut triggers: MessageReader<AnimationTriggerEvent>,
     mut windows: MessageReader<AnimationWindowEvent>,
 ) {
     for event in triggers.read() {
         log.messages.push(format!(
-            "TRIGGER: {} ({})",
+            "[Global] TRIGGER: '{}' ({})",
             event.trigger_name, event.animation
         ));
     }
 
     for event in windows.read() {
-        // Only log Begin/End, not every Tick
         if event.phase != WindowPhase::Tick {
             log.messages.push(format!(
-                "WINDOW: {} {:?} ({})",
+                "[Global] WINDOW: '{}' {:?} ({})",
                 event.window_name, event.phase, event.animation
             ));
         }
     }
 
-    // Keep last 10 messages
-    while log.messages.len() > 10 {
+    // Keep last 12 messages
+    while log.messages.len() > 12 {
         log.messages.remove(0);
     }
 }
 
 fn handle_input(keyboard: Res<ButtonInput<KeyCode>>, mut query: Query<&mut AnimatedSprite>) {
     let animation = if keyboard.just_pressed(KeyCode::Digit1) {
-        Some("walk")
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
-        Some("croak")
-    } else if keyboard.just_pressed(KeyCode::Digit3) {
-        Some("tongue")
-    } else if keyboard.just_pressed(KeyCode::Digit4) {
-        Some("hit")
+        Some("walk_down")
     } else {
         None
     };
@@ -168,17 +187,19 @@ fn update_display(
     };
 
     let events_text = if log.messages.is_empty() {
-        "No events yet - play 'tongue' animation!".to_string()
+        "No events yet - play 'walk_down' animation!".to_string()
     } else {
         log.messages.join("\n")
     };
 
     *text = Text::new(format!(
         "Animation Triggers Demo\n\n\
+        This demo shows BOTH event patterns:\n\
+        - [Observer] Entity-scoped via .observe()\n\
+        - [Global] System-wide via MessageReader\n\n\
         Status: {}\n\n\
         Controls:\n\
-        1: walk  2: croak  3: tongue  4: hit\n\
-        Space: Stop\n\n\
+        1: walk_down | Space: Stop\n\n\
         Events:\n\
         {}",
         status, events_text
