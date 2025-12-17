@@ -8,6 +8,7 @@
 //! - `Value` - Generic property value type
 //! - `MapProject` - Self-contained format bundling level and tilesets
 
+mod collision;
 mod entity;
 mod layer;
 mod level;
@@ -15,6 +16,7 @@ mod project;
 mod tileset;
 mod value;
 
+pub use collision::{CollisionData, CollisionShape, OneWayDirection, PhysicsBody};
 pub use entity::EntityInstance;
 pub use layer::{Layer, LayerData, LayerType};
 pub use level::Level;

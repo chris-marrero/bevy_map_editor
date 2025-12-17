@@ -25,9 +25,11 @@ impl Plugin for MapRenderPlugin {
             .init_resource::<SelectionRenderState>()
             .init_resource::<TerrainPreviewCache>()
             .init_resource::<EntityRenderState>()
+            .init_resource::<CollisionOverlayCache>()
             .add_systems(Update, sync_level_rendering)
             .add_systems(Update, sync_layer_visibility)
             .add_systems(Update, sync_grid_rendering)
+            .add_systems(Update, sync_collision_rendering)
             .add_systems(Update, sync_selection_preview)
             .add_systems(Update, sync_tile_selection_highlights)
             .add_systems(Update, sync_terrain_preview)
@@ -87,6 +89,21 @@ pub struct GridLine;
 /// Marker component for the selection rectangle preview
 #[derive(Component)]
 pub struct SelectionPreview;
+
+/// Marker component for collision shape overlays
+#[derive(Component)]
+pub struct CollisionOverlay;
+
+/// Cache for collision overlay entities (for efficient updates)
+#[derive(Resource, Default)]
+pub struct CollisionOverlayCache {
+    /// Collision overlay entities
+    pub entities: Vec<Entity>,
+    /// Last known show_collisions state
+    pub last_visible: bool,
+    /// Last known level ID
+    pub last_level: Option<Uuid>,
+}
 
 /// System to sync level rendering with the project data
 fn sync_level_rendering(
@@ -510,6 +527,213 @@ fn sync_grid_rendering(
             ))
             .id();
         render_state.grid_entities.push(entity);
+    }
+}
+
+/// System to render collision shape overlays on tiles
+fn sync_collision_rendering(
+    mut commands: Commands,
+    mut cache: ResMut<CollisionOverlayCache>,
+    editor_state: Res<EditorState>,
+    project: Res<Project>,
+) {
+    let show_collisions = editor_state.show_collisions;
+    let current_level = editor_state.selected_level;
+
+    // Check if we need to update
+    let needs_update = show_collisions != cache.last_visible
+        || current_level != cache.last_level;
+
+    if !needs_update && !show_collisions {
+        return;
+    }
+
+    // Despawn existing collision overlays
+    for entity in cache.entities.drain(..) {
+        commands.entity(entity).despawn();
+    }
+
+    cache.last_visible = show_collisions;
+    cache.last_level = current_level;
+
+    if !show_collisions {
+        return;
+    }
+
+    let Some(level_id) = current_level else {
+        return;
+    };
+
+    let Some(level) = project.levels.iter().find(|l| l.id == level_id) else {
+        return;
+    };
+
+    let collision_color = Color::srgba(0.0, 0.6, 1.0, 0.3);
+
+    // Iterate through tile layers
+    for (layer_idx, layer) in level.layers.iter().enumerate() {
+        if !layer.visible {
+            continue;
+        }
+
+        if let bevy_map_core::LayerData::Tiles { tileset_id, tiles, .. } = &layer.data {
+            // Get the tileset
+            let Some(tileset) = project.tilesets.iter().find(|t| t.id == *tileset_id) else {
+                continue;
+            };
+
+            let tile_size = tileset.tile_size as f32;
+
+            // Iterate through tiles
+            for y in 0..level.height {
+                for x in 0..level.width {
+                    let idx = (y * level.width + x) as usize;
+                    if let Some(&Some(tile_index)) = tiles.get(idx) {
+                        // Check if this tile has collision
+                        if let Some(props) = tileset.get_tile_properties(tile_index) {
+                            if props.collision.has_collision() {
+                                // Spawn collision overlay sprite(s)
+                                spawn_collision_overlay(
+                                    &mut commands,
+                                    &mut cache,
+                                    &props.collision.shape,
+                                    x,
+                                    y,
+                                    tile_size,
+                                    layer_idx,
+                                    collision_color,
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Spawn collision overlay sprite(s) for a single tile
+fn spawn_collision_overlay(
+    commands: &mut Commands,
+    cache: &mut CollisionOverlayCache,
+    shape: &bevy_map_core::CollisionShape,
+    tile_x: u32,
+    tile_y: u32,
+    tile_size: f32,
+    layer_idx: usize,
+    color: Color,
+) {
+    // Calculate world position (tiles are positioned from bottom-left)
+    let base_x = tile_x as f32 * tile_size;
+    let base_y = tile_y as f32 * tile_size;
+    let z = 101.0 + layer_idx as f32 * 0.01; // Just above grid (100.0)
+
+    match shape {
+        bevy_map_core::CollisionShape::None => {}
+        bevy_map_core::CollisionShape::Full => {
+            // Full tile collision - single sprite covering the tile
+            let entity = commands
+                .spawn((
+                    Sprite {
+                        color,
+                        custom_size: Some(Vec2::new(tile_size, tile_size)),
+                        ..default()
+                    },
+                    Transform::from_xyz(
+                        base_x + tile_size / 2.0,
+                        base_y + tile_size / 2.0,
+                        z,
+                    ),
+                    CollisionOverlay,
+                ))
+                .id();
+            cache.entities.push(entity);
+        }
+        bevy_map_core::CollisionShape::Rectangle { offset, size } => {
+            // Rectangle at offset with size (both normalized 0-1)
+            // Flip Y: editor uses Y-down (top=0), Bevy uses Y-up (bottom=0)
+            let width = size[0] * tile_size;
+            let height = size[1] * tile_size;
+            let center_x = base_x + (offset[0] + size[0] / 2.0) * tile_size;
+            let center_y = base_y + (1.0 - offset[1] - size[1] / 2.0) * tile_size;
+
+            let entity = commands
+                .spawn((
+                    Sprite {
+                        color,
+                        custom_size: Some(Vec2::new(width, height)),
+                        ..default()
+                    },
+                    Transform::from_xyz(center_x, center_y, z),
+                    CollisionOverlay,
+                ))
+                .id();
+            cache.entities.push(entity);
+        }
+        bevy_map_core::CollisionShape::Circle { offset, radius } => {
+            // Circle - approximate with a square sprite for now
+            // Could use a circle texture or shader in the future
+            // Flip Y: editor uses Y-down (top=0), Bevy uses Y-up (bottom=0)
+            let diameter = radius * 2.0 * tile_size;
+            let center_x = base_x + offset[0] * tile_size;
+            let center_y = base_y + (1.0 - offset[1]) * tile_size;
+
+            let entity = commands
+                .spawn((
+                    Sprite {
+                        color,
+                        custom_size: Some(Vec2::new(diameter, diameter)),
+                        ..default()
+                    },
+                    Transform::from_xyz(center_x, center_y, z),
+                    CollisionOverlay,
+                ))
+                .id();
+            cache.entities.push(entity);
+        }
+        bevy_map_core::CollisionShape::Polygon { points } => {
+            // Polygon - draw lines connecting vertices
+            if points.len() < 2 {
+                return;
+            }
+
+            let line_thickness = 2.0;
+            let line_color = Color::srgba(0.0, 0.6, 1.0, 0.6); // Slightly more opaque for lines
+
+            for i in 0..points.len() {
+                let p1 = &points[i];
+                let p2 = &points[(i + 1) % points.len()];
+
+                // Convert normalized coords to world coords
+                // Flip Y: editor uses Y-down (top=0), Bevy uses Y-up (bottom=0)
+                let x1 = base_x + p1[0] * tile_size;
+                let y1 = base_y + (1.0 - p1[1]) * tile_size;
+                let x2 = base_x + p2[0] * tile_size;
+                let y2 = base_y + (1.0 - p2[1]) * tile_size;
+
+                // Calculate line center, length, and angle
+                let center_x = (x1 + x2) / 2.0;
+                let center_y = (y1 + y2) / 2.0;
+                let dx = x2 - x1;
+                let dy = y2 - y1;
+                let length = (dx * dx + dy * dy).sqrt();
+                let angle = dy.atan2(dx);
+
+                let entity = commands
+                    .spawn((
+                        Sprite {
+                            color: line_color,
+                            custom_size: Some(Vec2::new(length, line_thickness)),
+                            ..default()
+                        },
+                        Transform::from_xyz(center_x, center_y, z)
+                            .with_rotation(Quat::from_rotation_z(angle)),
+                        CollisionOverlay,
+                    ))
+                    .id();
+                cache.entities.push(entity);
+            }
+        }
     }
 }
 

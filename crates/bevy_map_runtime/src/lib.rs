@@ -78,11 +78,13 @@ pub use bevy_map_autotile;
 pub use bevy_map_core;
 pub use bevy_map_dialogue;
 
+pub mod collision;
 pub mod entity_registry;
 pub mod loader;
 pub mod render;
 
 // Re-export commonly used types
+pub use collision::{MapCollider, MapCollisionPlugin};
 pub use entity_registry::{
     attach_dialogues, Dialogue, EntityProperties, EntityRegistry, MapEntityExt, MapEntityMarker,
     MapEntityType,

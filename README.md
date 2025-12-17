@@ -14,6 +14,7 @@ complex asset loading, you can specify when to load those as well for more contr
 - **Sprite Animations** - Define sprite sheets with named animations, autoloaded at runtime
 - **Dialogue Trees** - Visual node-based dialogue editor with branching conversations
 - **Schema System** - Type-safe entity properties with validation
+- **Collision Shapes** - Create and modify collision shapes on tiles, and integrate with avian2d automatically
 
 ## Editor Features
 
@@ -55,6 +56,12 @@ Spritesheet loading:
 
 Animation Timeline with Trigger/Window events:
 ![Animation Editor](docs/gifs/animation_editor.gif)
+
+### Collision Editor
+Add Rectangle, Circle, and custom Polygon collision shapes to individual Tiles in the Tileset.
+You can then show these in the tilemap with the "Show Collisions" view
+
+![Collision Editor](docs/images/collisions.png)
 
 ## Crates
 

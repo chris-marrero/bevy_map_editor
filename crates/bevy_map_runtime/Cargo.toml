@@ -17,6 +17,7 @@ bevy_map_animation = { workspace = true }
 bevy_map_dialogue = { workspace = true }
 bevy = { workspace = true }
 bevy_ecs_tilemap = { workspace = true }
+avian2d = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 uuid = { workspace = true }
@@ -25,6 +26,7 @@ thiserror = "2.0"
 [features]
 default = []
 hot-reload = []
+physics = ["avian2d"]
 
 [lints]
 workspace = true

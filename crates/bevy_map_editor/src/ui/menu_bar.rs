@@ -109,6 +109,12 @@ pub fn render_menu_bar(
                 {
                     ui.close();
                 }
+                if ui
+                    .checkbox(&mut editor_state.show_collisions, "Show Collisions")
+                    .clicked()
+                {
+                    ui.close();
+                }
                 // Snapping submenu (Tiled-style)
                 ui.menu_button("Snapping", |ui| {
                     if ui

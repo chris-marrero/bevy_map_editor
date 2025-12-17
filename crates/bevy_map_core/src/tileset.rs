@@ -1,18 +1,16 @@
 //! Tileset configuration with multi-image support
 
-use serde::{Deserialize, Serialize};
+use crate::collision::{CollisionData, CollisionShape, OneWayDirection};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Per-tile properties like collision, animation, and custom metadata
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TileProperties {
-    /// Whether this tile has collision
-    #[serde(default)]
-    pub collision: bool,
-    /// Whether this is a one-way platform (only collision from above)
-    #[serde(default)]
-    pub one_way: bool,
+    /// Collision configuration for this tile
+    #[serde(default, deserialize_with = "deserialize_collision")]
+    pub collision: CollisionData,
     /// Animation frames for this tile (list of tile indices)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub animation_frames: Option<Vec<u32>>,
@@ -22,6 +20,30 @@ pub struct TileProperties {
     /// Custom user-defined properties
     #[serde(default, skip_serializing_if = "HashMap::is_empty")]
     pub custom: HashMap<String, serde_json::Value>,
+}
+
+/// Deserialize collision data with backward compatibility for old bool format
+fn deserialize_collision<'de, D>(deserializer: D) -> Result<CollisionData, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum CollisionOrBool {
+        Data(CollisionData),
+        Bool(bool),
+    }
+
+    match CollisionOrBool::deserialize(deserializer)? {
+        CollisionOrBool::Data(data) => Ok(data),
+        CollisionOrBool::Bool(has_collision) => {
+            if has_collision {
+                Ok(CollisionData::full())
+            } else {
+                Ok(CollisionData::none())
+            }
+        }
+    }
 }
 
 impl TileProperties {
@@ -37,15 +59,37 @@ impl TileProperties {
             .unwrap_or(false)
     }
 
-    /// Set collision for this tile
-    pub fn with_collision(mut self, collision: bool) -> Self {
+    /// Check if this tile has collision
+    pub fn has_collision(&self) -> bool {
+        self.collision.has_collision()
+    }
+
+    /// Check if this is a one-way platform
+    pub fn is_one_way(&self) -> bool {
+        self.collision.is_one_way()
+    }
+
+    /// Set collision shape for this tile
+    pub fn with_collision(mut self, shape: CollisionShape) -> Self {
+        self.collision.shape = shape;
+        self
+    }
+
+    /// Set full collision for this tile
+    pub fn with_full_collision(mut self) -> Self {
+        self.collision = CollisionData::full();
+        self
+    }
+
+    /// Set collision data for this tile
+    pub fn with_collision_data(mut self, collision: CollisionData) -> Self {
         self.collision = collision;
         self
     }
 
-    /// Set one-way platform for this tile
-    pub fn with_one_way(mut self, one_way: bool) -> Self {
-        self.one_way = one_way;
+    /// Set one-way platform direction for this tile
+    pub fn with_one_way(mut self, direction: OneWayDirection) -> Self {
+        self.collision.one_way = direction;
         self
     }
 
@@ -69,10 +113,7 @@ impl TileProperties {
 
     /// Check if any properties are set (non-default)
     pub fn is_empty(&self) -> bool {
-        !self.collision
-            && !self.one_way
-            && self.animation_frames.is_none()
-            && self.custom.is_empty()
+        self.collision.is_empty() && self.animation_frames.is_none() && self.custom.is_empty()
     }
 }
 
@@ -182,14 +223,61 @@ impl Tileset {
     pub fn tile_has_collision(&self, tile_index: u32) -> bool {
         self.tile_properties
             .get(&tile_index)
-            .map(|p| p.collision)
+            .map(|p| p.has_collision())
             .unwrap_or(false)
     }
 
-    /// Set collision for a tile
-    pub fn set_tile_collision(&mut self, tile_index: u32, collision: bool) {
+    /// Get collision data for a tile
+    pub fn get_tile_collision(&self, tile_index: u32) -> Option<&CollisionData> {
+        self.tile_properties
+            .get(&tile_index)
+            .map(|p| &p.collision)
+    }
+
+    /// Set collision data for a tile
+    pub fn set_tile_collision(&mut self, tile_index: u32, collision: CollisionData) {
         let props = self.get_tile_properties_mut(tile_index);
         props.collision = collision;
+        // Clean up if properties are now empty
+        if props.is_empty() {
+            self.tile_properties.remove(&tile_index);
+        }
+    }
+
+    /// Set full collision for a tile (convenience method)
+    pub fn set_tile_full_collision(&mut self, tile_index: u32, has_collision: bool) {
+        let collision = if has_collision {
+            CollisionData::full()
+        } else {
+            CollisionData::none()
+        };
+        self.set_tile_collision(tile_index, collision);
+    }
+
+    /// Set collision shape for a tile (preserving other collision properties)
+    pub fn set_tile_collision_shape(&mut self, tile_index: u32, shape: CollisionShape) {
+        let props = self.get_tile_properties_mut(tile_index);
+        props.collision.shape = shape;
+        // Clean up if properties are now empty
+        if props.is_empty() {
+            self.tile_properties.remove(&tile_index);
+        }
+    }
+
+    /// Set one-way direction for a tile collision
+    pub fn set_tile_one_way(&mut self, tile_index: u32, direction: OneWayDirection) {
+        let props = self.get_tile_properties_mut(tile_index);
+        props.collision.one_way = direction;
+        // Clean up if properties are now empty
+        if props.is_empty() {
+            self.tile_properties.remove(&tile_index);
+        }
+    }
+
+    /// Set collision layer for a tile
+    pub fn set_tile_collision_layer(&mut self, tile_index: u32, layer: u8) {
+        let props = self.get_tile_properties_mut(tile_index);
+        props.collision.layer = layer;
         // Clean up if properties are now empty
         if props.is_empty() {
             self.tile_properties.remove(&tile_index);
