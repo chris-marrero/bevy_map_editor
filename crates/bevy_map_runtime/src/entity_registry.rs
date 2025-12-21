@@ -114,13 +114,11 @@ impl<T: MapEntityType> EntitySpawner for TypedSpawner<T> {
         // Parse entity color from instance if available, otherwise use a default
         let color = instance
             .get_string("_editor_color")
-            .and_then(|c| parse_hex_color(c))
+            .and_then(parse_hex_color)
             .unwrap_or(Color::srgba(0.2, 0.6, 1.0, 0.8)); // Default blue
 
         // Get marker size from instance or use default
-        let marker_size = instance
-            .get_float("_editor_marker_size")
-            .unwrap_or(16.0) as f32;
+        let marker_size = instance.get_float("_editor_marker_size").unwrap_or(16.0) as f32;
 
         commands.spawn((
             component,
@@ -151,7 +149,12 @@ fn parse_hex_color(hex: &str) -> Option<Color> {
         let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
         let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
         let b = u8::from_str_radix(&hex[4..6], 16).ok()?;
-        Some(Color::srgba(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0, 0.8))
+        Some(Color::srgba(
+            r as f32 / 255.0,
+            g as f32 / 255.0,
+            b as f32 / 255.0,
+            0.8,
+        ))
     } else if hex.len() == 8 {
         let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
         let g = u8::from_str_radix(&hex[2..4], 16).ok()?;

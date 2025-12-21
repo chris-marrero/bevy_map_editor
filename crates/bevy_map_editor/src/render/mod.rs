@@ -1897,7 +1897,9 @@ fn sync_entity_rendering(
             let _ = commands.get_entity(sprite_entity).map(|mut e| e.despawn());
         }
         if let Some(highlight_entity) = entity_render_state.selection_highlight.take() {
-            let _ = commands.get_entity(highlight_entity).map(|mut e| e.despawn());
+            let _ = commands
+                .get_entity(highlight_entity)
+                .map(|mut e| e.despawn());
         }
         entity_render_state.last_level = current_level_id;
         entity_render_state.last_layer = current_layer_idx;
@@ -1995,7 +1997,9 @@ fn sync_entity_rendering(
 
     // Handle selection highlight
     if let Some(highlight_entity) = entity_render_state.selection_highlight.take() {
-        let _ = commands.get_entity(highlight_entity).map(|mut e| e.despawn());
+        let _ = commands
+            .get_entity(highlight_entity)
+            .map(|mut e| e.despawn());
     }
 
     // Draw selection highlight around selected entity

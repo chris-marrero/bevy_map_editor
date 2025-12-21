@@ -287,7 +287,10 @@ fn handle_map_handle_spawning(
 
         // Start loading textures if we haven't
         if !state.loading_textures {
-            info!("MapProject '{}' loaded, queueing texture loads...", project.level.name);
+            info!(
+                "MapProject '{}' loaded, queueing texture loads...",
+                project.level.name
+            );
             let mut textures = TilesetTextures::new();
             textures.load_from_project(project, &asset_server);
             info!(
@@ -498,11 +501,10 @@ impl TilesetTextures {
         });
 
         let sprite_sheets_loaded = self.sprite_sheet_images.values().all(|handle| {
-            match asset_server.get_load_state(handle.id()) {
-                Some(LoadState::Loaded) => true,
-                Some(LoadState::Failed(_)) => true,
-                _ => false,
-            }
+            matches!(
+                asset_server.get_load_state(handle.id()),
+                Some(LoadState::Loaded) | Some(LoadState::Failed(_))
+            )
         });
 
         tilesets_loaded && sprite_sheets_loaded
@@ -1171,7 +1173,12 @@ pub fn spawn_map_project(
             tileset_id, tiles, ..
         } = &layer.data
         {
-            info!("  Layer {} is a tile layer with {} tiles, tileset {}", layer_index, tiles.len(), tileset_id);
+            info!(
+                "  Layer {} is a tile layer with {} tiles, tileset {}",
+                layer_index,
+                tiles.len(),
+                tileset_id
+            );
 
             if tiles.is_empty() {
                 info!("  Layer {} has empty tiles array, skipping", layer_index);
@@ -1187,7 +1194,11 @@ pub fn spawn_map_project(
                 continue;
             };
 
-            info!("  Found tileset '{}' with {} images", tileset.name, tileset.images.len());
+            info!(
+                "  Found tileset '{}' with {} images",
+                tileset.name,
+                tileset.images.len()
+            );
 
             // For multi-image tilesets, we need to create separate tilemaps per image
             // because bevy_ecs_tilemap uses a single texture per tilemap.
@@ -1277,7 +1288,10 @@ pub fn spawn_map_project(
                 commands.entity(map_entity).add_child(tilemap_entity);
             }
         } else {
-            info!("  Layer {} is not a tile layer (entity layer or other)", layer_index);
+            info!(
+                "  Layer {} is not a tile layer (entity layer or other)",
+                layer_index
+            );
         }
     }
 
