@@ -126,12 +126,14 @@ pub use bevy_map_autotile;
 pub use bevy_map_core;
 pub use bevy_map_dialogue;
 
+pub mod camera;
 pub mod collision;
 pub mod entity_registry;
 pub mod loader;
 pub mod render;
 
 // Re-export commonly used types
+pub use camera::{clamp_camera_to_bounds, setup_camera_bounds_from_map, CameraBounds};
 pub use collision::{MapCollider, MapCollisionPlugin};
 pub use entity_registry::{
     attach_dialogues, Dialogue, EntityProperties, EntityRegistry, MapEntityExt, MapEntityMarker,
@@ -196,6 +198,9 @@ impl Plugin for MapRuntimePlugin {
             .add_systems(Update, complete_sprite_loads)
             // Dialogue attachment system
             .add_systems(Update, attach_dialogues)
+            // Camera bounds systems
+            .add_systems(Update, setup_camera_bounds_from_map)
+            .add_systems(PostUpdate, clamp_camera_to_bounds)
             // Animated sprite auto-loading systems (opt-in)
             .add_systems(
                 Update,

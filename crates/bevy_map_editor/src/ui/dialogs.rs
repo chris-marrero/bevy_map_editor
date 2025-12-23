@@ -159,22 +159,21 @@ fn render_new_tileset_dialog(
     ctx: &egui::Context,
     editor_state: &mut EditorState,
     project: &mut Project,
-    assets_base_path: &AssetsBasePath,
+    _assets_base_path: &AssetsBasePath,
 ) {
     if !editor_state.show_new_tileset_dialog {
         return;
     }
 
-    // Check if path is valid and inside assets
+    // Check if path is valid (file exists)
     let path_status = if editor_state.new_tileset_path.is_empty() {
         PathStatus::Empty
     } else {
-        let absolute_path = std::path::PathBuf::from(&editor_state.new_tileset_path);
-        match assets_base_path.to_relative_checked(&absolute_path) {
-            Ok(_) => PathStatus::Valid,
-            Err(crate::PathError::FileNotFound(_)) => PathStatus::NotFound,
-            Err(crate::PathError::OutsideAssetsDirectory(_)) => PathStatus::OutsideAssets,
-            Err(_) => PathStatus::NotFound,
+        let path = std::path::Path::new(&editor_state.new_tileset_path);
+        if path.exists() {
+            PathStatus::Valid
+        } else {
+            PathStatus::NotFound
         }
     };
 
@@ -208,22 +207,9 @@ fn render_new_tileset_dialog(
                 }
             });
 
-            // Show path status warning
-            match path_status {
-                PathStatus::NotFound => {
-                    ui.colored_label(egui::Color32::RED, "File not found at this path");
-                }
-                PathStatus::OutsideAssets => {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        "File is outside assets folder - will be copied",
-                    );
-                    ui.small(format!(
-                        "Assets folder: {}",
-                        assets_base_path.path().display()
-                    ));
-                }
-                _ => {}
+            // Show path status warning (only for file not found)
+            if path_status == PathStatus::NotFound {
+                ui.colored_label(egui::Color32::RED, "File not found at this path");
             }
 
             ui.separator();
@@ -235,20 +221,9 @@ fn render_new_tileset_dialog(
 
                 ui.add_enabled_ui(can_create, |ui| {
                     if ui.button("Create").clicked() {
-                        let absolute_path =
-                            std::path::PathBuf::from(&editor_state.new_tileset_path);
-
-                        // Check if file needs to be copied
-                        if path_status == PathStatus::OutsideAssets {
-                            // Show copy confirmation dialog
-                            editor_state.pending_copy_source = Some(absolute_path);
-                            editor_state.pending_copy_callback = CopyFileCallback::NewTileset;
-                            editor_state.show_copy_file_dialog = true;
-                        } else {
-                            // File is inside assets, create tileset directly
-                            let relative_path = assets_base_path.to_relative(&absolute_path);
-                            create_tileset_from_path(editor_state, project, relative_path);
-                        }
+                        let path = std::path::PathBuf::from(&editor_state.new_tileset_path);
+                        // Use absolute path directly - Bevy's UnapprovedPathMode::Allow handles this
+                        create_tileset_from_path(editor_state, project, path);
                     }
                 });
 
@@ -265,20 +240,19 @@ enum PathStatus {
     Empty,
     Valid,
     NotFound,
-    OutsideAssets,
 }
 
-/// Helper to create tileset from a relative path
+/// Helper to create tileset from a path (can be absolute or relative)
 fn create_tileset_from_path(
     editor_state: &mut EditorState,
     project: &mut Project,
-    relative_path: std::path::PathBuf,
+    path: std::path::PathBuf,
 ) {
-    let relative_path_str = relative_path.to_string_lossy().to_string();
+    let path_str = path.to_string_lossy().to_string();
 
     let tileset = bevy_map_core::Tileset::new(
         editor_state.new_tileset_name.clone(),
-        relative_path_str,
+        path_str,
         editor_state.new_tileset_tile_size,
         0, // columns - will be determined when texture loads
         0, // rows
@@ -379,17 +353,17 @@ fn render_copy_file_dialog(
         });
 }
 
-/// Helper to add image to tileset from a relative path
+/// Helper to add image to tileset from a path (can be absolute or relative)
 fn add_tileset_image_from_path(
     editor_state: &mut EditorState,
     project: &mut Project,
-    relative_path: std::path::PathBuf,
+    path: std::path::PathBuf,
 ) {
     if let Some(tileset_id) = editor_state.selected_tileset {
         if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
             tileset.add_image(
                 editor_state.add_image_name.clone(),
-                relative_path.to_string_lossy().to_string(),
+                path.to_string_lossy().to_string(),
                 8, // Default columns - will be recalculated when loaded
                 8, // Default rows
             );
@@ -448,7 +422,7 @@ fn render_add_tileset_image_dialog(
     ctx: &egui::Context,
     editor_state: &mut EditorState,
     project: &mut Project,
-    assets_base_path: &AssetsBasePath,
+    _assets_base_path: &AssetsBasePath,
 ) {
     if !editor_state.show_add_tileset_image_dialog {
         return;
@@ -460,16 +434,15 @@ fn render_add_tileset_image_dialog(
         .map(|t| t.name.clone())
         .unwrap_or_else(|| "Unknown".to_string());
 
-    // Check if path is valid and inside assets
+    // Check if path is valid (file exists)
     let path_status = if editor_state.add_image_path.is_empty() {
         PathStatus::Empty
     } else {
-        let absolute_path = std::path::PathBuf::from(&editor_state.add_image_path);
-        match assets_base_path.to_relative_checked(&absolute_path) {
-            Ok(_) => PathStatus::Valid,
-            Err(crate::PathError::FileNotFound(_)) => PathStatus::NotFound,
-            Err(crate::PathError::OutsideAssetsDirectory(_)) => PathStatus::OutsideAssets,
-            Err(_) => PathStatus::NotFound,
+        let path = std::path::Path::new(&editor_state.add_image_path);
+        if path.exists() {
+            PathStatus::Valid
+        } else {
+            PathStatus::NotFound
         }
     };
 
@@ -500,18 +473,9 @@ fn render_add_tileset_image_dialog(
                 }
             });
 
-            // Show path status warning
-            match path_status {
-                PathStatus::NotFound => {
-                    ui.colored_label(egui::Color32::RED, "File not found at this path");
-                }
-                PathStatus::OutsideAssets => {
-                    ui.colored_label(
-                        egui::Color32::YELLOW,
-                        "File is outside assets folder - will be copied",
-                    );
-                }
-                _ => {}
+            // Show path status warning (only for file not found)
+            if path_status == PathStatus::NotFound {
+                ui.colored_label(egui::Color32::RED, "File not found at this path");
             }
 
             ui.separator();
@@ -531,18 +495,9 @@ fn render_add_tileset_image_dialog(
 
                 ui.add_enabled_ui(can_add, |ui| {
                     if ui.button("Add Image").clicked() {
-                        let absolute_path = std::path::PathBuf::from(&editor_state.add_image_path);
-
-                        if path_status == PathStatus::OutsideAssets {
-                            // Show copy confirmation dialog
-                            editor_state.pending_copy_source = Some(absolute_path);
-                            editor_state.pending_copy_callback = CopyFileCallback::AddTilesetImage;
-                            editor_state.show_copy_file_dialog = true;
-                        } else {
-                            // File is inside assets, add directly
-                            let relative_path = assets_base_path.to_relative(&absolute_path);
-                            add_tileset_image_from_path(editor_state, project, relative_path);
-                        }
+                        let path = std::path::PathBuf::from(&editor_state.add_image_path);
+                        // Use absolute path directly - Bevy's UnapprovedPathMode::Allow handles this
+                        add_tileset_image_from_path(editor_state, project, path);
                     }
                 });
             });

@@ -144,7 +144,7 @@ fn load_map(mut commands: Commands, asset_server: Res<AssetServer>) {
 ```
 
 <!-- TODO: Add runtime screenshot here -->
-![Runtime Screenshot](docs/images/runtime_screenshot.png)
+![Runtime Screenshot](docs/images/runtime.png)
 
 ### Defining Custom Entities
 
@@ -174,18 +174,18 @@ fn main() {
 
 ## Examples
 
-| Example                   | Description                                    |
-|---------------------------|------------------------------------------------|
-| `custom_editor`           | Embed editor with custom configuration         |
-| `runtime_loader`          | Load and display a map                         |
-| `collision_demo`          | Physics integration with Avian2D collisions    |
-| `animation_auto_demo`     | Auto-loading animated sprites                  |
-| `animation_manual_demo`   | Manual sprite animation control                |
-| `animation_triggers_demo` | Animation triggers and windows                 |
-| `dialogue_auto_demo`      | Auto-loading dialogue trees                    |
-| `dialogue_manual_demo`    | Manual dialogue handling                       |
-| `custom_entities_demo`    | Custom entity types from map data              |
-| `tileset_demo`            | Tileset rendering and tile properties          |
+| Example                   | Description                                                             |
+|---------------------------|-------------------------------------------------------------------------|
+| `custom_editor`           | Embed editor with custom configuration                                  |
+| `runtime_loader`          | Load and display a map                                                  |
+| `collision_demo`          | Physics integration with Avian2D collisions and animations - START HERE |
+| `animation_auto_demo`     | Auto-loading animated sprites                                           |
+| `animation_manual_demo`   | Manual sprite animation control                                         |
+| `animation_triggers_demo` | Animation triggers and windows                                          |
+| `dialogue_auto_demo`      | Auto-loading dialogue trees                                             |
+| `dialogue_manual_demo`    | Manual dialogue handling                                                |
+| `custom_entities_demo`    | Custom entity types from map data                                       |
+| `tileset_demo`            | Tileset rendering and tile properties                                   |
 
 Run examples:
 ```bash

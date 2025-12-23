@@ -1,6 +1,7 @@
 //! Property inspector panel
 
 use bevy_egui::egui;
+use bevy_map_animation::SpriteData;
 use uuid::Uuid;
 
 use crate::project::Project;
@@ -159,7 +160,7 @@ fn render_entity_inspector(
     let mut should_delete = false;
 
     // Phase 1: Extract read-only schema data before mutable borrow
-    let (type_name, type_def, enums, sprite_options, dialogue_options, ref_options) = {
+    let (type_name, type_def, enums, sprite_sheets, dialogue_options, ref_options) = {
         let Some(level) = project.get_level(level_id) else {
             ui.label("Level not found");
             return false;
@@ -173,12 +174,8 @@ fn render_entity_inspector(
         let type_def = project.schema.get_type(&type_name).cloned();
         let enums = project.schema.enums.clone();
 
-        // Collect sprite sheet options: (id_string, name)
-        let sprite_options: Vec<(String, String)> = project
-            .sprite_sheets
-            .iter()
-            .map(|s| (s.id.to_string(), s.name.clone()))
-            .collect();
+        // Collect sprite sheet data (full SpriteData for embedding)
+        let sprite_sheets: Vec<SpriteData> = project.sprite_sheets.clone();
 
         // Collect dialogue options: (id, name)
         let dialogue_options: Vec<(String, String)> = project
@@ -213,7 +210,7 @@ fn render_entity_inspector(
             type_name,
             type_def,
             enums,
-            sprite_options,
+            sprite_sheets,
             dialogue_options,
             ref_options,
         )
@@ -284,7 +281,7 @@ fn render_entity_inspector(
                 value,
                 &id_salt,
                 &enums,
-                &sprite_options,
+                &sprite_sheets,
                 &dialogue_options,
                 &ref_options,
             );
@@ -397,7 +394,7 @@ fn render_data_instance_inspector(
     let mut should_delete = false;
 
     // Phase 1: Extract read-only schema data before mutable borrow
-    let (type_name, type_def, enums, sprite_options, dialogue_options, ref_options) = {
+    let (type_name, type_def, enums, sprite_sheets, dialogue_options, ref_options) = {
         let Some(instance) = project.get_data_instance(instance_id) else {
             ui.label("Instance not found");
             return false;
@@ -407,12 +404,8 @@ fn render_data_instance_inspector(
         let type_def = project.schema.get_type(&type_name).cloned();
         let enums = project.schema.enums.clone();
 
-        // Collect sprite sheet options: (id_string, name)
-        let sprite_options: Vec<(String, String)> = project
-            .sprite_sheets
-            .iter()
-            .map(|s| (s.id.to_string(), s.name.clone()))
-            .collect();
+        // Collect sprite sheet data (full SpriteData for embedding)
+        let sprite_sheets: Vec<SpriteData> = project.sprite_sheets.clone();
 
         // Collect dialogue options: (id, name)
         let dialogue_options: Vec<(String, String)> = project
@@ -447,7 +440,7 @@ fn render_data_instance_inspector(
             type_name,
             type_def,
             enums,
-            sprite_options,
+            sprite_sheets,
             dialogue_options,
             ref_options,
         )
@@ -496,7 +489,7 @@ fn render_data_instance_inspector(
                 value,
                 &id_salt,
                 &enums,
-                &sprite_options,
+                &sprite_sheets,
                 &dialogue_options,
                 &ref_options,
             ) {
@@ -584,14 +577,13 @@ fn render_sprite_sheet_inspector(
 
     ui.separator();
 
-    ui.horizontal(|ui| {
-        if ui.button("Edit Animations").clicked() {
-            result.edit_sprite_sheet = Some(sprite_sheet_id);
-        }
-        if ui.button("Edit Sheet").clicked() {
-            result.edit_sprite_sheet_settings = Some(sprite_sheet_id);
-        }
-    });
+    if ui.button("Edit Animations").clicked() {
+        result.edit_sprite_sheet = Some(sprite_sheet_id);
+    }
+
+    if ui.button("Edit Sheet").clicked() {
+        result.edit_sprite_sheet_settings = Some(sprite_sheet_id);
+    }
 }
 
 fn render_dialogue_inspector(
@@ -724,7 +716,7 @@ fn render_property_value_editor(
     value: &mut bevy_map_core::Value,
     id_salt: &str,
     enums: &std::collections::HashMap<String, Vec<String>>,
-    sprite_options: &[(String, String)],
+    sprite_sheets: &[SpriteData],
     dialogue_options: &[(String, String)],
     ref_options: &std::collections::HashMap<String, Vec<(String, String)>>,
 ) -> Option<String> {
@@ -877,11 +869,20 @@ fn render_property_value_editor(
         }
 
         PropType::Sprite => {
-            let current_id = value.as_string().unwrap_or(&String::new()).to_string();
-            let current_name = sprite_options
+            // Get current sprite ID from embedded SpriteData object only
+            let current_id = match value {
+                Value::Object(obj) => obj
+                    .get("id")
+                    .and_then(|v| v.as_string())
+                    .map(|s| s.to_string()),
+                _ => None,
+            }
+            .unwrap_or_default();
+
+            let current_name = sprite_sheets
                 .iter()
-                .find(|(id, _)| *id == current_id)
-                .map(|(_, name)| name.as_str())
+                .find(|s| s.id.to_string() == current_id)
+                .map(|s| s.name.as_str())
                 .unwrap_or("(None)");
 
             egui::ComboBox::from_id_salt(id_salt)
@@ -893,9 +894,16 @@ fn render_property_value_editor(
                     {
                         *value = Value::Null;
                     }
-                    for (id, name) in sprite_options {
-                        if ui.selectable_label(*id == current_id, name).clicked() {
-                            *value = Value::String(id.clone());
+                    for sprite_data in sprite_sheets {
+                        let id_str = sprite_data.id.to_string();
+                        if ui
+                            .selectable_label(id_str == current_id, &sprite_data.name)
+                            .clicked()
+                        {
+                            // Embed full SpriteData as Value::Object
+                            if let Ok(json) = serde_json::to_value(sprite_data) {
+                                *value = Value::from_json(json);
+                            }
                         }
                     }
                 });

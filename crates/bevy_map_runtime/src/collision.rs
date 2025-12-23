@@ -36,6 +36,9 @@ use bevy_map_core::{CollisionShape, OneWayDirection, PhysicsBody};
 #[cfg(feature = "physics")]
 use avian2d::prelude::*;
 
+#[cfg(feature = "physics")]
+use bevy_ecs_tilemap::prelude::*;
+
 /// Plugin that provides collision spawning systems
 ///
 /// This plugin automatically spawns Avian2D colliders for tiles with
@@ -84,7 +87,24 @@ pub fn spawn_tile_colliders(
         let tile_size = map_root.textures.tile_size;
         let level = &project.level;
 
+        // Build tilemap parameters for coordinate conversion
+        let map_size = TilemapSize {
+            x: level.width,
+            y: level.height,
+        };
+        let grid_size = TilemapGridSize {
+            x: tile_size,
+            y: tile_size,
+        };
+        let tilemap_tile_size = TilemapTileSize {
+            x: tile_size,
+            y: tile_size,
+        };
+        let map_type = TilemapType::Square;
+        let anchor = TilemapAnchor::default(); // BottomLeft
+
         // Iterate through all tile layers
+        let mut total_colliders = 0;
         for layer in level.layers.iter() {
             if let bevy_map_core::LayerData::Tiles {
                 tileset_id, tiles, ..
@@ -110,13 +130,22 @@ pub fn spawn_tile_colliders(
                                         x,
                                         y,
                                         tile_size,
+                                        &map_size,
+                                        &grid_size,
+                                        &tilemap_tile_size,
+                                        &map_type,
+                                        &anchor,
                                     );
+                                    total_colliders += 1;
                                 }
                             }
                         }
                     }
                 }
             }
+        }
+        if total_colliders > 0 {
+            info!("Spawned {} tile colliders from map", total_colliders);
         }
     }
 }
@@ -130,15 +159,19 @@ fn spawn_collider_for_tile(
     tile_x: u32,
     tile_y: u32,
     tile_size: f32,
+    map_size: &TilemapSize,
+    grid_size: &TilemapGridSize,
+    tilemap_tile_size: &TilemapTileSize,
+    map_type: &TilemapType,
+    anchor: &TilemapAnchor,
 ) {
     let Some(collider) = shape_to_collider(&collision.shape, tile_size) else {
         return;
     };
 
-    // Calculate world position (bevy_ecs_tilemap uses bottom-left origin)
-    // Tiles are rendered at their center, so add half tile size
-    let world_x = tile_x as f32 * tile_size + tile_size / 2.0;
-    let world_y = tile_y as f32 * tile_size + tile_size / 2.0;
+    // Use bevy_ecs_tilemap's coordinate conversion for consistency with tile rendering
+    let tile_pos = TilePos { x: tile_x, y: tile_y };
+    let center = tile_pos.center_in_world(map_size, grid_size, tilemap_tile_size, map_type, anchor);
 
     // Apply offset from collision shape
     let (offset_x, offset_y) = get_shape_offset(&collision.shape, tile_size);
@@ -150,11 +183,13 @@ fn spawn_collider_for_tile(
 
     let collider_entity = commands
         .spawn((
-            Transform::from_xyz(world_x + offset_x, world_y + offset_y, 0.0),
+            Transform::from_xyz(center.x + offset_x, center.y + offset_y, 0.0),
             Visibility::default(),
             body_type_to_rigid_body(collision.body_type),
             collider,
             CollisionLayers::from_bits(membership, collision.mask),
+            // Prevent bouncing on contact
+            Restitution::new(0.0),
             MapCollider {
                 data: collision.clone(),
             },
@@ -187,9 +222,10 @@ fn shape_to_collider(shape: &CollisionShape, tile_size: f32) -> Option<Collider>
             if points.len() < 3 {
                 return None;
             }
+            // Note: Y is flipped because editor uses Y-down (top=0), Bevy uses Y-up (bottom=0)
             let scaled: Vec<Vec2> = points
                 .iter()
-                .map(|p| Vec2::new((p[0] - 0.5) * tile_size, (p[1] - 0.5) * tile_size))
+                .map(|p| Vec2::new((p[0] - 0.5) * tile_size, (0.5 - p[1]) * tile_size))
                 .collect();
             Collider::convex_hull(scaled)
         }
@@ -197,11 +233,24 @@ fn shape_to_collider(shape: &CollisionShape, tile_size: f32) -> Option<Collider>
 }
 
 /// Get the offset from collision shape (for Rectangle and Circle)
+///
+/// The offset field represents the top-left corner position in normalized coordinates (0-1).
+/// We need to convert this to a center offset from the tile center for the collider.
+/// Note: Editor uses Y-down (top=0), but Bevy uses Y-up (bottom=0), so we flip Y.
 #[cfg(feature = "physics")]
 fn get_shape_offset(shape: &CollisionShape, tile_size: f32) -> (f32, f32) {
     match shape {
-        CollisionShape::Rectangle { offset, .. } => (offset[0] * tile_size, offset[1] * tile_size),
-        CollisionShape::Circle { offset, .. } => (offset[0] * tile_size, offset[1] * tile_size),
+        CollisionShape::Rectangle { offset, size } => (
+            // X: offset + size/2 = center from tile origin, -0.5 = offset from tile center
+            (offset[0] + size[0] / 2.0 - 0.5) * tile_size,
+            // Y: flip because editor uses Y-down (top=0), Bevy uses Y-up (bottom=0)
+            (0.5 - offset[1] - size[1] / 2.0) * tile_size,
+        ),
+        CollisionShape::Circle { offset, .. } => (
+            (offset[0] - 0.5) * tile_size,
+            // Y: flip for same reason
+            (0.5 - offset[1]) * tile_size,
+        ),
         _ => (0.0, 0.0),
     }
 }

@@ -226,12 +226,13 @@ fn handle_viewport_input(
         editor_state.pending_cancel_move = false;
     }
 
-    // Check if egui is actively using the pointer
-    let egui_using_pointer = ctx.is_using_pointer();
+    // Check if egui wants the pointer (is over any interactive widget)
+    // Use wants_pointer_input() instead of is_using_pointer() to catch button clicks
+    let egui_wants_pointer = ctx.wants_pointer_input() || ctx.is_using_pointer();
 
-    // If egui is actively using the pointer and we're not in the middle of a rectangle draw,
+    // If egui wants the pointer and we're not in the middle of a rectangle draw,
     // block input. But always allow rectangle operations to complete.
-    if egui_using_pointer && !input_state.is_drawing_rect {
+    if egui_wants_pointer && !input_state.is_drawing_rect {
         input_state.is_panning = false;
         editor_state.is_painting = false;
         editor_state.brush_preview.active = false;
