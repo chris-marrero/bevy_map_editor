@@ -36,7 +36,7 @@ impl Plugin for MapRenderPlugin {
             .add_systems(Update, sync_terrain_preview)
             .add_systems(Update, sync_brush_preview)
             .add_systems(Update, sync_entity_rendering)
-            .add_systems(Update, update_camera_from_editor_state);
+            .add_systems(PostUpdate, update_camera_from_editor_state);
     }
 }
 

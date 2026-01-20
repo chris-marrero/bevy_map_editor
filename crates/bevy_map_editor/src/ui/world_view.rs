@@ -161,10 +161,8 @@ pub fn render_world_view(
     let available_rect = ui.available_rect_before_wrap();
     let response = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
 
-    // Handle panning with middle mouse or right mouse drag
-    if response.dragged_by(egui::PointerButton::Middle)
-        || response.dragged_by(egui::PointerButton::Secondary)
-    {
+    // Handle panning with middle mouse drag
+    if response.dragged_by(egui::PointerButton::Middle) {
         let delta = response.drag_delta();
         editor_state.world_view_offset.x += delta.x;
         editor_state.world_view_offset.y += delta.y;
@@ -194,7 +192,11 @@ pub fn render_world_view(
             if preferences.trackpad_mode {
                 // Trackpad mode: Ctrl+scroll = zoom, scroll alone = pan
                 if ctrl_pressed && scroll_delta.y != 0.0 {
-                    let zoom_factor = if scroll_delta.y > 0.0 { 1.1 } else { 0.9 };
+                    let zoom_factor = if scroll_delta.y > 0.0 {
+                        1.0 + 0.1 * preferences.trackpad_zoom_sensitivity
+                    } else {
+                        1.0 - 0.1 * preferences.trackpad_zoom_sensitivity
+                    };
                     let old_zoom = editor_state.world_view_zoom;
                     editor_state.world_view_zoom =
                         (editor_state.world_view_zoom * zoom_factor).clamp(0.05, 2.0);
@@ -211,8 +213,11 @@ pub fn render_world_view(
                     }
                 } else if !ctrl_pressed {
                     // Pan with scroll (trackpad two-finger gesture)
-                    editor_state.world_view_offset.x += scroll_delta.x;
-                    editor_state.world_view_offset.y += scroll_delta.y;
+                    let base_speed = 2.0;
+                    editor_state.world_view_offset.x +=
+                        scroll_delta.x * base_speed * preferences.trackpad_pan_sensitivity;
+                    editor_state.world_view_offset.y +=
+                        scroll_delta.y * base_speed * preferences.trackpad_pan_sensitivity;
                 }
             } else {
                 // Default mode: scroll = zoom

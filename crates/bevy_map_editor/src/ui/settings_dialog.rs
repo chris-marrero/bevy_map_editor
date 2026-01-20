@@ -78,6 +78,32 @@ pub fn render_settings_dialog(
                          Keyboard shortcuts (+/- for zoom) work in both modes.",
                     );
 
+                // Show sensitivity sliders only when trackpad mode is enabled
+                if preferences.trackpad_mode {
+                    ui.indent("trackpad_sensitivity", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Pan Sensitivity:");
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut preferences.trackpad_pan_sensitivity,
+                                    0.1..=5.0,
+                                )
+                                .suffix("x"),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Zoom Sensitivity:");
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut preferences.trackpad_zoom_sensitivity,
+                                    0.1..=5.0,
+                                )
+                                .suffix("x"),
+                            );
+                        });
+                    });
+                }
+
                 ui.add_space(16.0);
 
                 // Default Tool section

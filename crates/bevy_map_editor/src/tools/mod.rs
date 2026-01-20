@@ -271,8 +271,8 @@ fn handle_viewport_input(
         return;
     }
 
-    // Handle panning (middle mouse or right mouse)
-    if mouse_buttons.pressed(MouseButton::Middle) || mouse_buttons.pressed(MouseButton::Right) {
+    // Handle panning (middle mouse only)
+    if mouse_buttons.pressed(MouseButton::Middle) {
         if !input_state.is_panning {
             input_state.is_panning = true;
             input_state.pan_start_pos = Some(cursor_position);
@@ -826,12 +826,15 @@ fn handle_zoom_input(
         if preferences.trackpad_mode {
             // Trackpad mode: Ctrl+scroll = zoom, scroll alone = pan
             if ctrl_pressed {
-                let zoom_delta = event.y * 0.1;
+                let zoom_delta = event.y * 0.1 * preferences.trackpad_zoom_sensitivity;
                 editor_state.zoom = (editor_state.zoom * (1.0 + zoom_delta)).clamp(0.25, 4.0);
             } else {
                 // Pan with scroll (trackpad two-finger gesture)
-                editor_state.camera_offset.x -= event.x * 10.0 / editor_state.zoom;
-                editor_state.camera_offset.y += event.y * 10.0 / editor_state.zoom;
+                let base_speed = 50.0; // Base multiplier for good default feel
+                editor_state.camera_offset.x -=
+                    event.x * base_speed * preferences.trackpad_pan_sensitivity / editor_state.zoom;
+                editor_state.camera_offset.y +=
+                    event.y * base_speed * preferences.trackpad_pan_sensitivity / editor_state.zoom;
             }
         } else {
             // Default mode: scroll = zoom
