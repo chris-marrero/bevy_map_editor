@@ -63,6 +63,49 @@ pub fn render_settings_dialog(
 
                 ui.add_space(16.0);
 
+                // Input Controls section
+                ui.heading("Input Controls");
+                ui.separator();
+
+                ui.checkbox(&mut preferences.trackpad_mode, "Trackpad Mode")
+                    .on_hover_text(
+                        "When enabled:\n\
+                         • Two-finger scroll pans the viewport\n\
+                         • Ctrl+scroll zooms in/out\n\n\
+                         When disabled (default):\n\
+                         • Scroll wheel zooms in/out\n\
+                         • Middle/right mouse drag pans\n\n\
+                         Keyboard shortcuts (+/- for zoom) work in both modes.",
+                    );
+
+                // Show sensitivity sliders only when trackpad mode is enabled
+                if preferences.trackpad_mode {
+                    ui.indent("trackpad_sensitivity", |ui| {
+                        ui.horizontal(|ui| {
+                            ui.label("Pan Sensitivity:");
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut preferences.trackpad_pan_sensitivity,
+                                    0.1..=5.0,
+                                )
+                                .suffix("x"),
+                            );
+                        });
+                        ui.horizontal(|ui| {
+                            ui.label("Zoom Sensitivity:");
+                            ui.add(
+                                egui::Slider::new(
+                                    &mut preferences.trackpad_zoom_sensitivity,
+                                    0.1..=5.0,
+                                )
+                                .suffix("x"),
+                            );
+                        });
+                    });
+                }
+
+                ui.add_space(16.0);
+
                 // Default Tool section
                 ui.heading("Default Tool");
                 ui.separator();

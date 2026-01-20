@@ -52,6 +52,14 @@ pub struct EditorPreferences {
 
     // Theme settings
     pub theme: ThemeSettings,
+
+    // Input settings
+    /// Trackpad mode: swap scroll behavior (scroll = pan, Ctrl+scroll = zoom)
+    pub trackpad_mode: bool,
+    /// Pan sensitivity for trackpad mode (multiplier, default 1.0)
+    pub trackpad_pan_sensitivity: f32,
+    /// Zoom sensitivity for trackpad mode (multiplier, default 1.0)
+    pub trackpad_zoom_sensitivity: f32,
 }
 
 /// A recent project entry
@@ -87,6 +95,9 @@ impl Default for EditorPreferences {
             auto_open_last_project: false,
             keybindings: HashMap::new(),
             theme: ThemeSettings::default(),
+            trackpad_mode: false,
+            trackpad_pan_sensitivity: 1.0,
+            trackpad_zoom_sensitivity: 1.0,
         }
     }
 }

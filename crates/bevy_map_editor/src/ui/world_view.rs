@@ -7,6 +7,7 @@ use bevy_egui::egui;
 use bevy_map_core::WorldLayout;
 use uuid::Uuid;
 
+use crate::preferences::EditorPreferences;
 use crate::project::Project;
 use crate::EditorState;
 
@@ -66,6 +67,7 @@ pub fn render_world_view(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
     project: &mut Project,
+    preferences: &EditorPreferences,
 ) -> WorldViewResult {
     let mut result = WorldViewResult::default();
 
@@ -159,10 +161,8 @@ pub fn render_world_view(
     let available_rect = ui.available_rect_before_wrap();
     let response = ui.allocate_rect(available_rect, egui::Sense::click_and_drag());
 
-    // Handle panning with middle mouse or right mouse drag
-    if response.dragged_by(egui::PointerButton::Middle)
-        || response.dragged_by(egui::PointerButton::Secondary)
-    {
+    // Handle panning with middle mouse drag
+    if response.dragged_by(egui::PointerButton::Middle) {
         let delta = response.drag_delta();
         editor_state.world_view_offset.x += delta.x;
         editor_state.world_view_offset.y += delta.y;
@@ -173,24 +173,71 @@ pub fn render_world_view(
         editor_state.world_connection_from = None;
     }
 
-    // Handle zoom with scroll wheel
-    if response.hovered() {
-        let scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-        if scroll_delta != 0.0 {
-            let zoom_factor = if scroll_delta > 0.0 { 1.1 } else { 0.9 };
-            let old_zoom = editor_state.world_view_zoom;
-            editor_state.world_view_zoom =
-                (editor_state.world_view_zoom * zoom_factor).clamp(0.05, 2.0);
+    // Handle keyboard zoom shortcuts: + (or =) to zoom in, - to zoom out
+    if !ui.ctx().wants_keyboard_input() {
+        if ui.input(|i| i.key_pressed(egui::Key::Equals) || i.key_pressed(egui::Key::Plus)) {
+            editor_state.world_view_zoom = (editor_state.world_view_zoom * 1.25).clamp(0.05, 2.0);
+        }
+        if ui.input(|i| i.key_pressed(egui::Key::Minus)) {
+            editor_state.world_view_zoom = (editor_state.world_view_zoom * 0.8).clamp(0.05, 2.0);
+        }
+    }
 
-            // Zoom toward cursor position
-            if let Some(cursor_pos) = ui.input(|i| i.pointer.hover_pos()) {
-                let cursor_offset_x =
-                    cursor_pos.x - available_rect.min.x - editor_state.world_view_offset.x;
-                let cursor_offset_y =
-                    cursor_pos.y - available_rect.min.y - editor_state.world_view_offset.y;
-                let zoom_change = editor_state.world_view_zoom / old_zoom;
-                editor_state.world_view_offset.x -= cursor_offset_x * (zoom_change - 1.0);
-                editor_state.world_view_offset.y -= cursor_offset_y * (zoom_change - 1.0);
+    // Handle scroll (zoom or pan depending on trackpad mode)
+    if response.hovered() {
+        let scroll_delta = ui.input(|i| i.smooth_scroll_delta);
+        let ctrl_pressed = ui.input(|i| i.modifiers.ctrl || i.modifiers.command);
+
+        if scroll_delta.y != 0.0 || scroll_delta.x != 0.0 {
+            if preferences.trackpad_mode {
+                // Trackpad mode: Ctrl+scroll = zoom, scroll alone = pan
+                if ctrl_pressed && scroll_delta.y != 0.0 {
+                    let zoom_factor = if scroll_delta.y > 0.0 {
+                        1.0 + 0.1 * preferences.trackpad_zoom_sensitivity
+                    } else {
+                        1.0 - 0.1 * preferences.trackpad_zoom_sensitivity
+                    };
+                    let old_zoom = editor_state.world_view_zoom;
+                    editor_state.world_view_zoom =
+                        (editor_state.world_view_zoom * zoom_factor).clamp(0.05, 2.0);
+
+                    // Zoom toward cursor position
+                    if let Some(cursor_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                        let cursor_offset_x =
+                            cursor_pos.x - available_rect.min.x - editor_state.world_view_offset.x;
+                        let cursor_offset_y =
+                            cursor_pos.y - available_rect.min.y - editor_state.world_view_offset.y;
+                        let zoom_change = editor_state.world_view_zoom / old_zoom;
+                        editor_state.world_view_offset.x -= cursor_offset_x * (zoom_change - 1.0);
+                        editor_state.world_view_offset.y -= cursor_offset_y * (zoom_change - 1.0);
+                    }
+                } else if !ctrl_pressed {
+                    // Pan with scroll (trackpad two-finger gesture)
+                    let base_speed = 2.0;
+                    editor_state.world_view_offset.x +=
+                        scroll_delta.x * base_speed * preferences.trackpad_pan_sensitivity;
+                    editor_state.world_view_offset.y +=
+                        scroll_delta.y * base_speed * preferences.trackpad_pan_sensitivity;
+                }
+            } else {
+                // Default mode: scroll = zoom
+                if scroll_delta.y != 0.0 {
+                    let zoom_factor = if scroll_delta.y > 0.0 { 1.1 } else { 0.9 };
+                    let old_zoom = editor_state.world_view_zoom;
+                    editor_state.world_view_zoom =
+                        (editor_state.world_view_zoom * zoom_factor).clamp(0.05, 2.0);
+
+                    // Zoom toward cursor position
+                    if let Some(cursor_pos) = ui.input(|i| i.pointer.hover_pos()) {
+                        let cursor_offset_x =
+                            cursor_pos.x - available_rect.min.x - editor_state.world_view_offset.x;
+                        let cursor_offset_y =
+                            cursor_pos.y - available_rect.min.y - editor_state.world_view_offset.y;
+                        let zoom_change = editor_state.world_view_zoom / old_zoom;
+                        editor_state.world_view_offset.x -= cursor_offset_x * (zoom_change - 1.0);
+                        editor_state.world_view_offset.y -= cursor_offset_y * (zoom_change - 1.0);
+                    }
+                }
             }
         }
     }
