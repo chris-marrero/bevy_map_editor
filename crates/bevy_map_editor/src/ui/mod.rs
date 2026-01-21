@@ -106,6 +106,42 @@ impl TilesetTextureCache {
     }
 }
 
+/// Cache for entity icon/sprite textures used in viewport rendering
+#[derive(Resource, Default)]
+pub struct EntityTextureCache {
+    /// Icon textures: icon_path -> (handle, width, height)
+    pub icons: HashMap<String, (Handle<Image>, u32, u32)>,
+    /// Sprite sheet textures: sprite_sheet_id -> (handle, width, height)
+    pub sprite_sheets: HashMap<Uuid, (Handle<Image>, u32, u32)>,
+    /// Pending icon loads: icon_path -> handle
+    pub pending_icons: HashMap<String, Handle<Image>>,
+    /// Pending sprite sheet loads: sprite_sheet_id -> handle
+    pub pending_sprite_sheets: HashMap<Uuid, Handle<Image>>,
+}
+
+/// Tracks whether pointer is over UI panels (not viewport)
+#[derive(Resource, Default)]
+pub struct UiHoverState {
+    /// Pointer is over the left tree view panel
+    pub over_tree_view: bool,
+    /// Pointer is over the right inspector panel
+    pub over_inspector: bool,
+    /// Pointer is over the bottom asset browser panel
+    pub over_asset_browser: bool,
+    /// Pointer is over any modal editor (tileset, animation, etc.)
+    pub over_modal_editor: bool,
+}
+
+impl UiHoverState {
+    /// Returns true if pointer is over any UI panel
+    pub fn over_any_panel(&self) -> bool {
+        self.over_tree_view
+            || self.over_inspector
+            || self.over_asset_browser
+            || self.over_modal_editor
+    }
+}
+
 /// Main UI plugin
 pub struct EditorUiPlugin;
 
@@ -114,11 +150,14 @@ impl Plugin for EditorUiPlugin {
         app.init_resource::<UiState>()
             .init_resource::<SpritesheetTextureCache>()
             .init_resource::<TilesetTextureCache>()
+            .init_resource::<EntityTextureCache>()
+            .init_resource::<UiHoverState>()
             .add_systems(
                 Update,
                 (
                     load_tileset_textures,
                     load_spritesheet_textures,
+                    load_entity_textures,
                     process_edit_actions,
                 ),
             )
@@ -414,6 +453,110 @@ fn load_spritesheet_textures(
     }
 }
 
+/// System to load entity icon/sprite textures for viewport rendering
+fn load_entity_textures(
+    project: Res<Project>,
+    mut cache: ResMut<EntityTextureCache>,
+    asset_server: Res<AssetServer>,
+    images: Res<Assets<Image>>,
+) {
+    use bevy::asset::LoadState;
+    use bevy_map_schema::ViewportDisplayMode;
+
+    // Check pending icon loads - clone handles first to avoid borrow conflicts
+    let pending_icons: Vec<_> = cache
+        .pending_icons
+        .iter()
+        .map(|(k, v)| (k.clone(), v.clone()))
+        .collect();
+    for (path, handle) in pending_icons {
+        match asset_server.get_load_state(handle.id()) {
+            Some(LoadState::Loaded) => {
+                if let Some(image) = images.get(&handle) {
+                    let width = image.width();
+                    let height = image.height();
+                    cache.icons.insert(path.clone(), (handle, width, height));
+                }
+                cache.pending_icons.remove(&path);
+            }
+            Some(LoadState::Failed(_)) => {
+                cache.pending_icons.remove(&path);
+            }
+            _ => {}
+        }
+    }
+
+    // Check pending sprite sheet loads - clone handles first to avoid borrow conflicts
+    let pending_sheets: Vec<_> = cache
+        .pending_sprite_sheets
+        .iter()
+        .map(|(k, v)| (*k, v.clone()))
+        .collect();
+    for (sheet_id, handle) in pending_sheets {
+        match asset_server.get_load_state(handle.id()) {
+            Some(LoadState::Loaded) => {
+                if let Some(image) = images.get(&handle) {
+                    let width = image.width();
+                    let height = image.height();
+                    cache
+                        .sprite_sheets
+                        .insert(sheet_id, (handle, width, height));
+                }
+                cache.pending_sprite_sheets.remove(&sheet_id);
+            }
+            Some(LoadState::Failed(_)) => {
+                cache.pending_sprite_sheets.remove(&sheet_id);
+            }
+            _ => {}
+        }
+    }
+
+    // Discover textures needed from entity types based on their viewport_display mode
+    for (type_name, type_def) in &project.schema.data_types {
+        match type_def.viewport_display {
+            ViewportDisplayMode::Icon => {
+                // Load icon texture if specified and not already loaded/pending
+                if let Some(icon_path) = &type_def.icon {
+                    if !icon_path.is_empty()
+                        && !cache.icons.contains_key(icon_path)
+                        && !cache.pending_icons.contains_key(icon_path)
+                    {
+                        let asset_path = crate::to_asset_path(icon_path);
+                        let handle: Handle<Image> = asset_server.load(&asset_path);
+                        cache.pending_icons.insert(icon_path.clone(), handle);
+                    }
+                }
+            }
+            ViewportDisplayMode::Sprite => {
+                // Load sprite sheet texture if entity type has a SpriteConfig
+                if let Some(entity_type_config) = project.entity_type_configs.get(type_name) {
+                    if let Some(sprite_config) = &entity_type_config.sprite {
+                        if let Some(sprite_sheet_id) = sprite_config.sprite_sheet_id {
+                            if !cache.sprite_sheets.contains_key(&sprite_sheet_id)
+                                && !cache.pending_sprite_sheets.contains_key(&sprite_sheet_id)
+                            {
+                                // Find the sprite sheet and load its texture
+                                if let Some(sprite_sheet) = project
+                                    .sprite_sheets
+                                    .iter()
+                                    .find(|ss| ss.id == sprite_sheet_id)
+                                {
+                                    let asset_path = crate::to_asset_path(&sprite_sheet.sheet_path);
+                                    let handle: Handle<Image> = asset_server.load(&asset_path);
+                                    cache.pending_sprite_sheets.insert(sprite_sheet_id, handle);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            ViewportDisplayMode::ColoredSquare => {
+                // No texture loading needed for colored squares
+            }
+        }
+    }
+}
+
 /// Main UI rendering system
 fn render_ui(
     mut contexts: EguiContexts,
@@ -425,8 +568,12 @@ fn render_ui(
     assets_base_path: Res<crate::AssetsBasePath>,
     history: Res<CommandHistory>,
     clipboard: Res<TileClipboard>,
+    mut ui_hover_state: ResMut<UiHoverState>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
+
+    // Reset hover states at start of frame
+    *ui_hover_state = UiHoverState::default();
 
     // Apply editor theme
     EditorTheme::apply(ctx);
@@ -458,19 +605,20 @@ fn render_ui(
     // Left panel - Tree View
     let mut tree_view_result = TreeViewResult::default();
     if ui_state.show_tree_view {
-        egui::SidePanel::left("tree_view")
+        let response = egui::SidePanel::left("tree_view")
             .resizable(true)
             .default_width(ui_state.tree_view_width)
             .show(ctx, |ui| {
                 ui_state.tree_view_width = ui.available_width();
                 tree_view_result = render_tree_view(ui, &mut editor_state, &mut project);
             });
+        ui_hover_state.over_tree_view = response.response.contains_pointer();
     }
 
     // Right panel - Inspector + Terrain Palette
     let mut inspector_result = InspectorResult::default();
     if ui_state.show_inspector {
-        egui::SidePanel::right("inspector")
+        let response = egui::SidePanel::right("inspector")
             .resizable(true)
             .default_width(ui_state.inspector_width)
             .show(ctx, |ui| {
@@ -525,6 +673,7 @@ fn render_ui(
                     }
                 });
             });
+        ui_hover_state.over_inspector = response.response.contains_pointer();
     }
 
     // Handle inspector actions (deletions)
@@ -1130,7 +1279,7 @@ fn render_ui(
 
     // Bottom panel - Asset Browser
     if ui_state.show_asset_browser {
-        egui::TopBottomPanel::bottom("asset_browser")
+        let response = egui::TopBottomPanel::bottom("asset_browser")
             .resizable(true)
             .default_height(ui_state.asset_browser_height)
             .min_height(100.0)
@@ -1139,7 +1288,14 @@ fn render_ui(
                 let _result = render_asset_browser(ui, &mut ui_state.asset_browser_state);
                 // TODO: Handle result.file_activated for import actions
             });
+        ui_hover_state.over_asset_browser = response.response.contains_pointer();
     }
+
+    // Track modal editor hover state - any modal editor blocks viewport input
+    ui_hover_state.over_modal_editor = editor_state.show_tileset_editor
+        || editor_state.show_spritesheet_editor
+        || editor_state.show_animation_editor
+        || editor_state.show_dialogue_editor;
 
     // Central area - world view or level view
     egui::CentralPanel::default()
