@@ -36,8 +36,25 @@ Add the following screenshots to this directory:
    - Sprite sheet loaded with frame grid
    - Animation timeline or frame selection
 
+7. code_preview.png
+   - Code Preview dialog open
+   - Show tab bar with Entities/Enums/Stubs/Behaviors tabs
+   - Show generated Rust code in the preview area
+   - Show action buttons (Copy to Clipboard, Open in VS Code)
+
 Tips:
 - Use PNG format for crisp text
 - Keep file sizes reasonable (<500KB each)
 - Dark theme screenshots work well on GitHub
 - Crop to focus on the relevant UI area
+
+GIF Requirements (docs/gifs/)
+-----------------------------
+
+codegen.gif - Full workflow showing:
+   1. Opening Game Settings
+   2. Enabling code generation
+   3. Clicking "Preview Code"
+   4. Switching between tabs
+   5. Generating code
+   6. Opening in VS Code

@@ -95,6 +95,22 @@ You can then show these in the tilemap with the "Show Collisions" view
 
 ![Collision Editor](docs/images/collisions.png)
 
+### Code Generation
+
+Generate Rust code directly from your map data to accelerate game development.
+
+![Code Generation](docs/gifs/codegen.gif)
+
+Features:
+- **Entity Structs** - Auto-generate Bevy components from entity type definitions
+- **Enum Definitions** - Generate Rust enums from schema enum types
+- **Behavior Stubs** - Create placeholder functions for entity behaviors
+- **Movement Systems** - Generate input-driven movement code from Input profiles
+
+Configure code generation in Game Settings, preview before writing, and open generated files directly in VS Code.
+
+![Code Preview](docs/images/codegen_settings.png)
+
 ## Crates
 
 | Crate                                           | Description                                           |
@@ -108,6 +124,7 @@ You can then show these in the tilemap with the "Show Collisions" view
 | [bevy_map_dialogue](crates/bevy_map_dialogue)   | Dialogue tree system                                  |
 | [bevy_map_derive](crates/bevy_map_derive)       | `#[derive(MapEntity)]` proc macro                     |
 | [bevy_map_schema](crates/bevy_map_schema)       | Entity property validation                            |
+| [bevy_map_codegen](crates/bevy_map_codegen)     | Rust code generation from map data                    |
 
 ## Quick Start
 
