@@ -99,7 +99,6 @@ pub fn get_default_vscode_path() -> Option<String> {
     None
 }
 
-
 /// Open a path in VS Code
 ///
 /// If a file is specified, VS Code will open the containing folder and the file.
@@ -160,7 +159,6 @@ fn get_vscode_command() -> String {
     // Default to "code" and let it fail if not found
     "code".to_string()
 }
-
 
 /// Open a path with the system default application
 ///
@@ -270,7 +268,10 @@ mod tests {
         assert_eq!(editors.len(), 2);
 
         assert_eq!(PreferredEditor::VSCode.display_name(), "VS Code");
-        assert_eq!(PreferredEditor::SystemDefault.display_name(), "File Browser");
+        assert_eq!(
+            PreferredEditor::SystemDefault.display_name(),
+            "File Browser"
+        );
     }
 
     #[test]

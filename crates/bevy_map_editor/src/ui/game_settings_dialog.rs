@@ -80,11 +80,7 @@ impl GameSettingsDialogState {
         self.generate_enums = project.game_config.generate_enums;
 
         // Load VS Code path
-        self.vscode_path = project
-            .game_config
-            .vscode_path
-            .clone()
-            .unwrap_or_default();
+        self.vscode_path = project.game_config.vscode_path.clone().unwrap_or_default();
     }
 
     /// Check and cache CLI installation status

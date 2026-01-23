@@ -2230,9 +2230,11 @@ fn handle_preview_code(editor_state: &mut EditorState, project: &Project) {
     };
 
     // Set the output path for "Open in VS Code" functionality
-    let output_path = project.game_config.project_path.as_ref().map(|game_path| {
-        game_path.join(&project.game_config.codegen_output_path)
-    });
+    let output_path = project
+        .game_config
+        .project_path
+        .as_ref()
+        .map(|game_path| game_path.join(&project.game_config.codegen_output_path));
     editor_state.code_preview_dialog.output_path = output_path;
 
     // Set VS Code path for opening files
@@ -2263,7 +2265,8 @@ fn handle_open_in_vscode(editor_state: &mut EditorState, project: &Project) {
 
     // Use custom VS Code path if configured
     let vscode_path = project.game_config.vscode_path.as_deref();
-    if let Err(e) = crate::external_editor::open_in_vscode_with_custom_path(game_path, vscode_path) {
+    if let Err(e) = crate::external_editor::open_in_vscode_with_custom_path(game_path, vscode_path)
+    {
         editor_state.error_message = Some(format!("Failed to open VS Code: {}", e));
     }
 }
