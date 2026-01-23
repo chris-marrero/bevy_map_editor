@@ -20,30 +20,30 @@ impl EditorTheme {
     // Background Colors (from Bevy Feathers OKLCH palette)
     // -------------------------------------------------------------------------------
 
-    /// Main window/tabs background - GRAY_0 oklcha(0.2414, 0.0095, 285.67)
-    pub const BG_WINDOW: Color32 = Color32::from_rgb(40, 41, 47);
+    /// Main window/tabs background - darker charcoal for modern look
+    pub const BG_WINDOW: Color32 = Color32::from_rgb(30, 30, 36);
 
-    /// Panel content background - GRAY_1 oklcha(0.2866, 0.0072, 285.93)
-    pub const BG_PANEL: Color32 = Color32::from_rgb(52, 54, 60);
+    /// Panel content background - slightly lighter than window
+    pub const BG_PANEL: Color32 = Color32::from_rgb(35, 35, 40);
 
-    /// Widget/button background - GRAY_2 oklcha(0.3373, 0.0071, 274.77)
-    pub const BG_WIDGET: Color32 = Color32::from_rgb(67, 68, 75);
+    /// Widget/button background - subtle elevation
+    pub const BG_WIDGET: Color32 = Color32::from_rgb(42, 42, 48);
 
-    /// Selected tab/elevated widget background - GRAY_3 oklcha(0.3992, 0.0101, 278.38)
-    pub const BG_SELECTED_TAB: Color32 = Color32::from_rgb(85, 86, 94);
+    /// Selected tab/elevated widget background
+    pub const BG_SELECTED_TAB: Color32 = Color32::from_rgb(50, 51, 58);
 
-    /// Row hover/highlight background (between GRAY_2 and GRAY_3)
-    pub const BG_ROW: Color32 = Color32::from_rgb(76, 77, 84);
+    /// Row hover/highlight background
+    pub const BG_ROW: Color32 = Color32::from_rgb(45, 46, 52);
 
     // -------------------------------------------------------------------------------
     // Border Colors (from Bevy Feathers)
     // -------------------------------------------------------------------------------
 
-    /// Main border - WARM_GRAY_1 oklcha(0.3757, 0.0017, 286.32)
-    pub const BORDER_MAIN: Color32 = Color32::from_rgb(75, 76, 80);
+    /// Main border - subtle for modern look
+    pub const BORDER_MAIN: Color32 = Color32::from_rgb(50, 51, 55);
 
-    /// Widget/panel border (slightly lighter)
-    pub const BORDER_WIDGET: Color32 = Color32::from_rgb(85, 86, 90);
+    /// Widget/panel border - subtle
+    pub const BORDER_WIDGET: Color32 = Color32::from_rgb(55, 56, 60);
 
     /// Side panel border
     #[allow(dead_code)]
@@ -154,7 +154,7 @@ impl EditorTheme {
         visuals.widgets.noninteractive.bg_fill = Self::BG_WIDGET;
         visuals.widgets.noninteractive.weak_bg_fill = Self::BG_PANEL;
         visuals.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Self::TEXT_MUTED);
-        visuals.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Self::BORDER_WIDGET);
+        visuals.widgets.noninteractive.bg_stroke = Stroke::new(0.5, Self::BORDER_WIDGET);
         visuals.widgets.noninteractive.corner_radius = CornerRadius::same(5);
 
         // ───────────────────────────────────────────────────────────────────────
@@ -163,7 +163,7 @@ impl EditorTheme {
         visuals.widgets.inactive.bg_fill = Self::BG_WIDGET;
         visuals.widgets.inactive.weak_bg_fill = Self::BG_PANEL;
         visuals.widgets.inactive.fg_stroke = Stroke::new(1.0, Self::TEXT_PRIMARY);
-        visuals.widgets.inactive.bg_stroke = Stroke::new(1.0, Self::BORDER_WIDGET);
+        visuals.widgets.inactive.bg_stroke = Stroke::new(0.5, Self::BORDER_WIDGET);
         visuals.widgets.inactive.corner_radius = CornerRadius::same(5);
 
         // ───────────────────────────────────────────────────────────────────────
@@ -172,18 +172,18 @@ impl EditorTheme {
         visuals.widgets.hovered.bg_fill = Self::BG_SELECTED_TAB;
         visuals.widgets.hovered.weak_bg_fill = Self::BG_ROW;
         visuals.widgets.hovered.fg_stroke = Stroke::new(1.0, Self::TEXT_BRIGHT);
-        visuals.widgets.hovered.bg_stroke = Stroke::new(1.0, Self::BORDER_WIDGET);
+        visuals.widgets.hovered.bg_stroke = Stroke::new(0.5, Self::BORDER_WIDGET);
         visuals.widgets.hovered.corner_radius = CornerRadius::same(5);
 
         // ───────────────────────────────────────────────────────────────────────
         // Widget styling - Active (being clicked/dragged)
-        // Solid accent blue background per Figma (background: #206EC9)
+        // Solid accent blue background, clean with no border
         // Pure white text for maximum readability over blue
         // ───────────────────────────────────────────────────────────────────────
         visuals.widgets.active.bg_fill = Self::ACCENT_BLUE;
         visuals.widgets.active.weak_bg_fill = Self::ACCENT_BLUE;
         visuals.widgets.active.fg_stroke = Stroke::new(1.5, Self::TEXT_WHITE);
-        visuals.widgets.active.bg_stroke = Stroke::new(1.0, Self::BORDER_WIDGET);
+        visuals.widgets.active.bg_stroke = Stroke::NONE;
         visuals.widgets.active.corner_radius = CornerRadius::same(5);
 
         // ───────────────────────────────────────────────────────────────────────
@@ -193,7 +193,7 @@ impl EditorTheme {
         visuals.widgets.open.bg_fill = Self::BG_SELECTED_TAB;
         visuals.widgets.open.weak_bg_fill = Self::BG_ROW;
         visuals.widgets.open.fg_stroke = Stroke::new(1.5, Self::TEXT_WHITE);
-        visuals.widgets.open.bg_stroke = Stroke::new(1.0, Self::ACCENT_BLUE);
+        visuals.widgets.open.bg_stroke = Stroke::new(0.5, Self::ACCENT_BLUE);
         visuals.widgets.open.corner_radius = CornerRadius::same(5);
 
         // ───────────────────────────────────────────────────────────────────────
@@ -220,10 +220,10 @@ impl EditorTheme {
         visuals.striped = true;
 
         // ───────────────────────────────────────────────────────────────────────
-        // Spacing (tighter to match Figma compact layout)
+        // Spacing (adjusted for proportional fonts)
         // ───────────────────────────────────────────────────────────────────────
-        style.spacing.item_spacing = egui::vec2(4.0, 2.0);
-        style.spacing.button_padding = egui::vec2(6.0, 3.0);
+        style.spacing.item_spacing = egui::vec2(6.0, 3.0);
+        style.spacing.button_padding = egui::vec2(8.0, 4.0);
         style.spacing.indent = 16.0;
         style.spacing.interact_size = egui::vec2(40.0, 20.0);
         style.spacing.slider_width = 100.0;
@@ -246,36 +246,39 @@ impl EditorTheme {
         Self::configure_fonts(ctx);
     }
 
-    /// Configure fonts for a clean, monospace-first UI aesthetic.
+    /// Configure fonts for a clean, modern UI aesthetic.
     ///
-    /// Uses egui's built-in monospace font (Hack) as the primary font
-    /// for a consistent, code-editor-like appearance matching Bevy's style.
+    /// Uses proportional fonts for better readability in UI elements,
+    /// while keeping monospace available for code display.
     fn configure_fonts(ctx: &egui::Context) {
         // Only configure fonts once
         if FONTS_CONFIGURED.swap(true, Ordering::SeqCst) {
             return;
         }
 
-        // Configure text styles to use appropriate font sizes
-        // Monospace gives a clean, technical aesthetic that matches Bevy's editor
+        // Configure text styles to use proportional fonts for modern look
         let mut style = (*ctx.style()).clone();
 
-        // Use monospace for body text (gives the "code editor" feel)
+        // Use proportional fonts for UI text (modern, readable)
         style
             .text_styles
-            .insert(TextStyle::Body, FontId::new(13.0, FontFamily::Monospace));
-        style
-            .text_styles
-            .insert(TextStyle::Small, FontId::new(11.0, FontFamily::Monospace));
-        style
-            .text_styles
-            .insert(TextStyle::Button, FontId::new(13.0, FontFamily::Monospace));
-        style
-            .text_styles
-            .insert(TextStyle::Heading, FontId::new(16.0, FontFamily::Monospace));
+            .insert(TextStyle::Body, FontId::new(13.0, FontFamily::Proportional));
+        style.text_styles.insert(
+            TextStyle::Small,
+            FontId::new(11.0, FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Button,
+            FontId::new(13.0, FontFamily::Proportional),
+        );
+        style.text_styles.insert(
+            TextStyle::Heading,
+            FontId::new(15.0, FontFamily::Proportional),
+        );
+        // Keep Monospace style available for code display
         style.text_styles.insert(
             TextStyle::Monospace,
-            FontId::new(13.0, FontFamily::Monospace),
+            FontId::new(12.0, FontFamily::Monospace),
         );
 
         ctx.set_style(style);
@@ -285,14 +288,14 @@ impl EditorTheme {
     // Helper Methods
     // -------------------------------------------------------------------------------════════════
 
-    /// Get a frame style for side panels (matches Figma panel styling)
+    /// Get a frame style for side panels (subtle borders)
     #[allow(dead_code)]
     pub fn panel_frame() -> egui::Frame {
         egui::Frame {
             fill: Self::BG_PANEL,
             inner_margin: egui::Margin::same(6),
             outer_margin: egui::Margin::ZERO,
-            stroke: Stroke::new(1.0, Self::BORDER_MAIN),
+            stroke: Stroke::new(0.5, Self::BORDER_MAIN),
             corner_radius: CornerRadius::same(6),
             shadow: egui::Shadow::NONE,
         }
@@ -305,20 +308,20 @@ impl EditorTheme {
             fill: Self::BG_WINDOW,
             inner_margin: egui::Margin::same(8),
             outer_margin: egui::Margin::same(4),
-            stroke: Stroke::new(1.0, Self::BORDER_WIDGET),
+            stroke: Stroke::new(0.5, Self::BORDER_WIDGET),
             corner_radius: CornerRadius::same(8),
             shadow: egui::Shadow::NONE,
         }
     }
 
-    /// Get a frame style for toolbars (top bars in Figma)
+    /// Get a frame style for toolbars (top bars)
     #[allow(dead_code)]
     pub fn toolbar_frame() -> egui::Frame {
         egui::Frame {
             fill: Self::BG_WINDOW,
             inner_margin: egui::Margin::symmetric(8, 4),
             outer_margin: egui::Margin::ZERO,
-            stroke: Stroke::new(1.0, Self::BORDER_MAIN),
+            stroke: Stroke::new(0.5, Self::BORDER_MAIN),
             corner_radius: CornerRadius::ZERO,
             shadow: egui::Shadow::NONE,
         }
