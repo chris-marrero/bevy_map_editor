@@ -260,10 +260,9 @@ impl EditorTheme {
         let mut style = (*ctx.style()).clone();
 
         // Use proportional fonts for UI text (modern, readable)
-        style.text_styles.insert(
-            TextStyle::Body,
-            FontId::new(13.0, FontFamily::Proportional),
-        );
+        style
+            .text_styles
+            .insert(TextStyle::Body, FontId::new(13.0, FontFamily::Proportional));
         style.text_styles.insert(
             TextStyle::Small,
             FontId::new(11.0, FontFamily::Proportional),
