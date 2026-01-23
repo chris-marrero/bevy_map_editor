@@ -34,8 +34,10 @@ pub enum PendingAction {
     GenerateCode,
     /// Preview generated code
     PreviewCode,
-    /// Open game project in external editor
-    OpenGameProject,
+    /// Open game project in VS Code
+    OpenInVSCode,
+    /// Open game project folder in file browser
+    OpenProjectFolder,
 }
 
 /// Render all dialogs

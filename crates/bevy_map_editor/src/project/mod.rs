@@ -89,6 +89,10 @@ pub struct GameProjectConfig {
     /// Whether to generate enum definitions
     #[serde(default = "default_true")]
     pub generate_enums: bool,
+
+    /// Custom path to VS Code executable (optional - uses auto-detection if not set)
+    #[serde(default)]
+    pub vscode_path: Option<String>,
 }
 
 fn default_codegen_output_path() -> String {
