@@ -38,34 +38,100 @@ impl From<io::Error> for EditorError {
     }
 }
 
-/// Check if VS Code is installed
+/// Check if VS Code is installed (or available at a custom path)
 pub fn is_vscode_installed() -> bool {
-    Command::new("code")
-        .arg("--version")
-        .output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    is_vscode_available(None)
 }
 
-/// Check if Cursor is installed
-pub fn is_cursor_installed() -> bool {
-    Command::new("cursor")
+/// Check if VS Code is available, optionally at a custom path
+pub fn is_vscode_available(custom_path: Option<&str>) -> bool {
+    // If a custom path is provided, check if it exists
+    if let Some(path) = custom_path {
+        if !path.is_empty() && std::path::Path::new(path).exists() {
+            return true;
+        }
+    }
+
+    // Try running code --version first (works if VS Code is in PATH)
+    if Command::new("code")
         .arg("--version")
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)
+    {
+        return true;
+    }
+
+    // On Windows, check common install paths
+    #[cfg(target_os = "windows")]
+    {
+        if let Some(path) = get_default_vscode_path() {
+            if std::path::Path::new(&path).exists() {
+                return true;
+            }
+        }
+    }
+
+    false
 }
+
+/// Get the default VS Code path on Windows
+#[cfg(target_os = "windows")]
+pub fn get_default_vscode_path() -> Option<String> {
+    let paths = [
+        std::env::var("LOCALAPPDATA")
+            .ok()
+            .map(|p| format!("{}/Programs/Microsoft VS Code/Code.exe", p)),
+        std::env::var("PROGRAMFILES")
+            .ok()
+            .map(|p| format!("{}/Microsoft VS Code/Code.exe", p)),
+    ];
+    for path in paths.into_iter().flatten() {
+        if std::path::Path::new(&path).exists() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+#[cfg(not(target_os = "windows"))]
+pub fn get_default_vscode_path() -> Option<String> {
+    None
+}
+
 
 /// Open a path in VS Code
 ///
 /// If a file is specified, VS Code will open the containing folder and the file.
 /// If a directory is specified, VS Code will open the directory.
 pub fn open_in_vscode(path: &Path) -> Result<(), EditorError> {
+    open_in_vscode_with_custom_path(path, None)
+}
+
+/// Open a path in VS Code using a custom executable path
+///
+/// If `vscode_path` is provided and non-empty, uses that path to launch VS Code.
+/// Otherwise falls back to the `code` command or auto-detected paths.
+pub fn open_in_vscode_with_custom_path(
+    path: &Path,
+    vscode_path: Option<&str>,
+) -> Result<(), EditorError> {
     if !path.exists() {
         return Err(EditorError::PathNotFound(path.display().to_string()));
     }
 
-    let output = Command::new("code").arg(path).spawn()?;
+    // Determine which VS Code executable to use
+    let vscode_cmd = if let Some(custom) = vscode_path {
+        if !custom.is_empty() && std::path::Path::new(custom).exists() {
+            custom.to_string()
+        } else {
+            get_vscode_command()
+        }
+    } else {
+        get_vscode_command()
+    };
+
+    let output = Command::new(&vscode_cmd).arg(path).spawn()?;
 
     // We don't wait for the process - VS Code runs independently
     std::mem::forget(output);
@@ -73,18 +139,28 @@ pub fn open_in_vscode(path: &Path) -> Result<(), EditorError> {
     Ok(())
 }
 
-/// Open a path in Cursor (VS Code fork)
-pub fn open_in_cursor(path: &Path) -> Result<(), EditorError> {
-    if !path.exists() {
-        return Err(EditorError::PathNotFound(path.display().to_string()));
+/// Get the VS Code command to use (either "code" or a detected path)
+fn get_vscode_command() -> String {
+    // First try the "code" command
+    if Command::new("code")
+        .arg("--version")
+        .output()
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+    {
+        return "code".to_string();
     }
 
-    let output = Command::new("cursor").arg(path).spawn()?;
+    // Fall back to detected path on Windows
+    #[cfg(target_os = "windows")]
+    if let Some(path) = get_default_vscode_path() {
+        return path;
+    }
 
-    std::mem::forget(output);
-
-    Ok(())
+    // Default to "code" and let it fail if not found
+    "code".to_string()
 }
+
 
 /// Open a path with the system default application
 ///
@@ -140,28 +216,21 @@ pub enum PreferredEditor {
     /// VS Code
     #[default]
     VSCode,
-    /// Cursor (VS Code fork)
-    Cursor,
-    /// System default
+    /// System default (file browser)
     SystemDefault,
 }
 
 impl PreferredEditor {
     /// Get all available editors
     pub fn all() -> &'static [PreferredEditor] {
-        &[
-            PreferredEditor::VSCode,
-            PreferredEditor::Cursor,
-            PreferredEditor::SystemDefault,
-        ]
+        &[PreferredEditor::VSCode, PreferredEditor::SystemDefault]
     }
 
     /// Get display name
     pub fn display_name(&self) -> &'static str {
         match self {
             PreferredEditor::VSCode => "VS Code",
-            PreferredEditor::Cursor => "Cursor",
-            PreferredEditor::SystemDefault => "System Default",
+            PreferredEditor::SystemDefault => "File Browser",
         }
     }
 
@@ -169,7 +238,6 @@ impl PreferredEditor {
     pub fn is_available(&self) -> bool {
         match self {
             PreferredEditor::VSCode => is_vscode_installed(),
-            PreferredEditor::Cursor => is_cursor_installed(),
             PreferredEditor::SystemDefault => true,
         }
     }
@@ -178,7 +246,6 @@ impl PreferredEditor {
     pub fn open(&self, path: &Path) -> Result<(), EditorError> {
         match self {
             PreferredEditor::VSCode => open_in_vscode(path),
-            PreferredEditor::Cursor => open_in_cursor(path),
             PreferredEditor::SystemDefault => open_with_default(path),
         }
     }
@@ -188,8 +255,6 @@ impl PreferredEditor {
 pub fn detect_best_editor() -> PreferredEditor {
     if is_vscode_installed() {
         PreferredEditor::VSCode
-    } else if is_cursor_installed() {
-        PreferredEditor::Cursor
     } else {
         PreferredEditor::SystemDefault
     }
@@ -202,14 +267,10 @@ mod tests {
     #[test]
     fn test_preferred_editor() {
         let editors = PreferredEditor::all();
-        assert_eq!(editors.len(), 3);
+        assert_eq!(editors.len(), 2);
 
         assert_eq!(PreferredEditor::VSCode.display_name(), "VS Code");
-        assert_eq!(PreferredEditor::Cursor.display_name(), "Cursor");
-        assert_eq!(
-            PreferredEditor::SystemDefault.display_name(),
-            "System Default"
-        );
+        assert_eq!(PreferredEditor::SystemDefault.display_name(), "File Browser");
     }
 
     #[test]
