@@ -29,8 +29,7 @@ pub fn render_settings_dialog(
                 ui.horizontal(|ui| {
                     ui.label("App Scale:");
                     ui.add(
-                        egui::Slider::new(&mut preferences.app_scale, 0.25..=4.0)
-                            .logarithmic(true),
+                        egui::Slider::new(&mut preferences.app_scale, 0.25..=4.0).logarithmic(true),
                     );
                 });
 

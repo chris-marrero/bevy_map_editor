@@ -48,7 +48,9 @@ pub use tree_view::{render_tree_view, TreeViewResult};
 pub use world_view::{render_new_level_dialog, render_world_view, NewLevelParams, WorldViewResult};
 
 use bevy::prelude::*;
-use bevy_egui::{egui, EguiContexts, EguiContextSettings, EguiPrimaryContextPass, EguiTextureHandle};
+use bevy_egui::{
+    egui, EguiContextSettings, EguiContexts, EguiPrimaryContextPass, EguiTextureHandle,
+};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use uuid::Uuid;
