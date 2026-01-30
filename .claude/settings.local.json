@@ -32,7 +32,9 @@
       "WebFetch(domain:bevyengine.github.io)",
       "Bash(cargo publish:*)",
       "Bash(gh auth status:*)",
-      "WebFetch(domain:spacetimedb.com)"
+      "WebFetch(domain:spacetimedb.com)",
+      "Bash(gh pr view:*)",
+      "Bash(git status:*)"
     ]
   }
 }
