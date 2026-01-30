@@ -60,8 +60,6 @@ pub struct ViewportInputState {
     pub last_paint_world_pos: Option<Vec2>,
     /// Whether full-tile mode was active for the last preview (to detect mode changes)
     pub last_preview_full_tile_mode: bool,
-    /// Anchor tile position for line brush (Shift+Click draws line from anchor to click)
-    pub line_brush_anchor: Option<(i32, i32)>,
 }
 
 /// Tracks tile changes during a painting stroke for undo support
@@ -172,7 +170,7 @@ fn calculate_targets_bounds(
 }
 
 /// Bresenham's line algorithm - generates all tile coordinates along a line
-fn bresenham_line(x0: i32, y0: i32, x1: i32, y1: i32) -> Vec<(i32, i32)> {
+pub(crate) fn bresenham_line(x0: i32, y0: i32, x1: i32, y1: i32) -> Vec<(i32, i32)> {
     let mut points = Vec::new();
 
     let dx = (x1 - x0).abs();
@@ -607,64 +605,19 @@ fn handle_viewport_input(
         editor_state.brush_preview.position = None;
     }
 
-    // Check for Shift key (used for line brush)
-    let shift_pressed =
-        keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
-
     // Point mode painting (continuous while dragging)
     if mouse_buttons.pressed(MouseButton::Left) && !input_state.is_panning && !is_rectangle_mode && !is_line_mode {
         match editor_state.current_tool {
             EditorTool::Paint => {
-                // Get current tile position for line brush anchor tracking
-                let current_tile_x = (world_pos.x / tile_size).floor() as i32;
-                let current_tile_y = (world_pos.y / tile_size).floor() as i32;
-
-                // Line brush: Shift+Click draws line from anchor to current position
-                if mouse_buttons.just_pressed(MouseButton::Left)
-                    && shift_pressed
-                    && input_state.line_brush_anchor.is_some()
-                {
-                    let (anchor_x, anchor_y) = input_state.line_brush_anchor.unwrap();
-                    let line_points =
-                        bresenham_line(anchor_x, anchor_y, current_tile_x, current_tile_y);
-
-                    // Paint each tile along the line
-                    for (lx, ly) in line_points {
-                        // Convert tile coords back to world position (center of tile)
-                        let world_x = (lx as f32 + 0.5) * tile_size;
-                        let world_y = (ly as f32 + 0.5) * tile_size;
-                        paint_tile(
-                            &mut commands,
-                            &mut editor_state,
-                            &mut project,
-                            &mut render_state,
-                            &mut stroke_tracker,
-                            &tileset_cache,
-                            Vec2::new(world_x, world_y),
-                        );
-                        // Clear last_painted_tile to allow painting each point
-                        editor_state.last_painted_tile = None;
-                    }
-
-                    // Update anchor to new position
-                    input_state.line_brush_anchor = Some((current_tile_x, current_tile_y));
-                } else {
-                    // Normal painting
-                    paint_tile(
-                        &mut commands,
-                        &mut editor_state,
-                        &mut project,
-                        &mut render_state,
-                        &mut stroke_tracker,
-                        &tileset_cache,
-                        world_pos,
-                    );
-
-                    // Update line brush anchor on first click of stroke
-                    if mouse_buttons.just_pressed(MouseButton::Left) {
-                        input_state.line_brush_anchor = Some((current_tile_x, current_tile_y));
-                    }
-                }
+                paint_tile(
+                    &mut commands,
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    &mut stroke_tracker,
+                    &tileset_cache,
+                    world_pos,
+                );
             }
             EditorTool::Terrain => {
                 // Ctrl+click enables full-tile mode (paints all 8 positions of tile)
@@ -683,56 +636,15 @@ fn handle_viewport_input(
                 );
             }
             EditorTool::Erase => {
-                // Get current tile position for line brush anchor tracking
-                let current_tile_x = (world_pos.x / tile_size).floor() as i32;
-                let current_tile_y = (world_pos.y / tile_size).floor() as i32;
-
-                // Line brush for erase: Shift+Click erases line from anchor to current position
-                if mouse_buttons.just_pressed(MouseButton::Left)
-                    && shift_pressed
-                    && input_state.line_brush_anchor.is_some()
-                {
-                    let (anchor_x, anchor_y) = input_state.line_brush_anchor.unwrap();
-                    let line_points =
-                        bresenham_line(anchor_x, anchor_y, current_tile_x, current_tile_y);
-
-                    // Erase each tile along the line
-                    for (lx, ly) in line_points {
-                        // Convert tile coords back to world position (center of tile)
-                        let world_x = (lx as f32 + 0.5) * tile_size;
-                        let world_y = (ly as f32 + 0.5) * tile_size;
-                        erase_tile(
-                            &mut commands,
-                            &mut editor_state,
-                            &mut project,
-                            &mut render_state,
-                            &mut stroke_tracker,
-                            &tileset_cache,
-                            Vec2::new(world_x, world_y),
-                        );
-                        // Clear last_painted_tile to allow erasing each point
-                        editor_state.last_painted_tile = None;
-                    }
-
-                    // Update anchor to new position
-                    input_state.line_brush_anchor = Some((current_tile_x, current_tile_y));
-                } else {
-                    // Normal erasing
-                    erase_tile(
-                        &mut commands,
-                        &mut editor_state,
-                        &mut project,
-                        &mut render_state,
-                        &mut stroke_tracker,
-                        &tileset_cache,
-                        world_pos,
-                    );
-
-                    // Update line brush anchor on first click of stroke
-                    if mouse_buttons.just_pressed(MouseButton::Left) {
-                        input_state.line_brush_anchor = Some((current_tile_x, current_tile_y));
-                    }
-                }
+                erase_tile(
+                    &mut commands,
+                    &mut editor_state,
+                    &mut project,
+                    &mut render_state,
+                    &mut stroke_tracker,
+                    &tileset_cache,
+                    world_pos,
+                );
             }
             _ => {}
         }
