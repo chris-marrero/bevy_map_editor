@@ -7,7 +7,7 @@ use bevy::asset::{AssetPlugin, UnapprovedPathMode};
 use bevy::image::{ImageFilterMode, ImageSamplerDescriptor};
 use bevy::ecs::message::MessageReader;
 use bevy::prelude::*;
-use bevy::window::WindowResolution;
+use bevy::window::{MonitorSelection, VideoModeSelection, WindowMode, WindowMoved, WindowPosition, WindowResized, WindowResolution};
 use bevy_map_editor::preferences::EditorPreferences;
 use bevy_map_editor::project::Project;
 use bevy_map_editor::EditorPlugin;
@@ -19,6 +19,17 @@ fn main() {
     let window_width = preferences.window_width.unwrap_or(1920.0) as u32;
     let window_height = preferences.window_height.unwrap_or(1080.0) as u32;
 
+    let window_position = match (preferences.window_x, preferences.window_y) {
+        (Some(x), Some(y)) => WindowPosition::At(IVec2::new(x, y)),
+        _ => WindowPosition::Automatic,
+    };
+
+    let window_mode = match preferences.window_mode.as_deref() {
+        Some("borderless_fullscreen") => WindowMode::BorderlessFullscreen(MonitorSelection::Current),
+        Some("fullscreen") => WindowMode::Fullscreen(MonitorSelection::Current, VideoModeSelection::Current),
+        _ => WindowMode::Windowed,
+    };
+
     App::new()
         .add_plugins(
             DefaultPlugins
@@ -28,6 +39,8 @@ fn main() {
                         // High DPI support: prevent OS-level scaling that causes blurriness
                         resolution: WindowResolution::new(window_width, window_height)
                             .with_scale_factor_override(1.0),
+                        position: window_position,
+                        mode: window_mode,
                         ..default()
                     }),
                     ..default()
@@ -50,6 +63,7 @@ fn main() {
         )
         .add_plugins(EditorPlugin::default())
         .add_systems(Startup, auto_open_last_project)
+        .add_systems(Update, save_window_state_on_change)
         .add_systems(Last, save_window_size_on_exit)
         .run();
 }
@@ -81,7 +95,39 @@ fn auto_open_last_project(mut project: ResMut<Project>, preferences: Res<EditorP
     }
 }
 
-/// Save window size to preferences when the app exits
+/// Save window state to preferences whenever the window is moved or resized
+fn save_window_state_on_change(
+    mut moved_events: MessageReader<WindowMoved>,
+    mut resized_events: MessageReader<WindowResized>,
+    windows: Query<&Window>,
+    mut preferences: ResMut<EditorPreferences>,
+) {
+    let has_moved = moved_events.read().last().is_some();
+    let has_resized = resized_events.read().last().is_some();
+
+    if !has_moved && !has_resized {
+        return;
+    }
+
+    if let Ok(window) = windows.single() {
+        preferences.window_width = Some(window.resolution.width());
+        preferences.window_height = Some(window.resolution.height());
+        if let WindowPosition::At(pos) = window.position {
+            preferences.window_x = Some(pos.x);
+            preferences.window_y = Some(pos.y);
+        }
+        preferences.window_mode = Some(match window.mode {
+            WindowMode::BorderlessFullscreen(_) => "borderless_fullscreen".to_string(),
+            WindowMode::Fullscreen(_, _) => "fullscreen".to_string(),
+            _ => "windowed".to_string(),
+        });
+        if let Err(e) = preferences.save() {
+            error!("Failed to save window state to preferences: {}", e);
+        }
+    }
+}
+
+/// Save window size to preferences when the app exits (fallback)
 fn save_window_size_on_exit(
     mut exit_events: MessageReader<AppExit>,
     windows: Query<&Window>,
@@ -93,6 +139,15 @@ fn save_window_size_on_exit(
     if let Ok(window) = windows.single() {
         preferences.window_width = Some(window.resolution.width());
         preferences.window_height = Some(window.resolution.height());
+        if let WindowPosition::At(pos) = window.position {
+            preferences.window_x = Some(pos.x);
+            preferences.window_y = Some(pos.y);
+        }
+        preferences.window_mode = Some(match window.mode {
+            WindowMode::BorderlessFullscreen(_) => "borderless_fullscreen".to_string(),
+            WindowMode::Fullscreen(_, _) => "fullscreen".to_string(),
+            _ => "windowed".to_string(),
+        });
         if let Err(e) = preferences.save() {
             error!("Failed to save window size to preferences: {}", e);
         }
