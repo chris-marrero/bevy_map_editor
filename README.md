@@ -3,6 +3,8 @@
 A complete 2D tilemap editing ecosystem for Bevy 0.18. Create maps in the editor, load them at runtime with one line of code. For more 
 complex asset loading, you can specify when to load those as well for more control.
 
+Come chat in the Bevy discord! https://discord.com/channels/691052431525675048/1455599197653827657
+
 ![Editor Screenshot](docs/images/editor_screenshot.png)
 
 ## Headline
