@@ -3,6 +3,7 @@
 use crate::ui::dialogs::PendingAction;
 use crate::{EditorState, EditorViewMode};
 use bevy_egui::egui;
+use bevy_map_integration::registry::IntegrationRegistry;
 use serde::{Deserialize, Serialize};
 
 /// Available editor tools
@@ -50,7 +51,11 @@ impl ToolMode {
 }
 
 /// Render the toolbar
-pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
+pub fn render_toolbar(
+    ctx: &egui::Context,
+    editor_state: &mut EditorState,
+    integration_registry: Option<&IntegrationRegistry>,
+) {
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.horizontal(|ui| {
             // View mode toggle
@@ -210,6 +215,32 @@ pub fn render_toolbar(ctx: &egui::Context, editor_state: &mut EditorState) {
                 .clicked()
             {
                 editor_state.pending_action = Some(PendingAction::RunGame);
+            }
+
+            // Integration toolbar buttons
+            if let Some(registry) = integration_registry {
+                let buttons: Vec<_> = registry
+                    .ui_contributions()
+                    .iter()
+                    .filter_map(|ext| {
+                        if let bevy_map_integration::editor::EditorExtension::ToolbarButton {
+                            name,
+                            ..
+                        } = ext
+                        {
+                            Some(name.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !buttons.is_empty() {
+                    ui.separator();
+                    for name in &buttons {
+                        let _ = ui.button(name.as_str());
+                    }
+                }
             }
         });
     });

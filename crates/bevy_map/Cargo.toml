@@ -21,6 +21,9 @@ bevy_map_schema = { workspace = true }
 # Optional runtime (enabled by default)
 bevy_map_runtime = { workspace = true, optional = true }
 
+# Optional integration system
+bevy_map_integration = { workspace = true, optional = true }
+
 bevy = { workspace = true }
 
 [features]
@@ -28,6 +31,7 @@ default = ["runtime", "hot-reload"]
 runtime = ["dep:bevy_map_runtime"]
 physics = ["runtime", "bevy_map_runtime/physics"]
 hot-reload = ["runtime", "bevy_map_runtime/hot-reload"]
+integration = ["dep:bevy_map_integration"]
 
 [lints]
 workspace = true

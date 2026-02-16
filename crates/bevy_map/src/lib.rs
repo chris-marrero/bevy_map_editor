@@ -171,6 +171,25 @@ pub use bevy_map_runtime::{
 };
 
 // =============================================================================
+// Integration module - plugin system (optional)
+// =============================================================================
+
+/// Plugin integration system for TOML-based and Rust companion plugins.
+///
+/// Requires the `integration` feature.
+#[cfg(feature = "integration")]
+pub mod integration {
+    pub use bevy_map_integration::*;
+}
+
+#[cfg(feature = "integration")]
+pub use bevy_map_integration::{
+    manager::PluginManager,
+    plugin_meta::{PluginMeta, PropertyDef, PropertyType},
+    registry::IntegrationRegistry,
+};
+
+// =============================================================================
 // Prelude - import everything commonly needed
 // =============================================================================
 
@@ -208,4 +227,8 @@ pub mod prelude {
         spawn_map_project, EntityRegistry, MapEntityExt, MapHandle, MapRoot, MapRuntimePlugin,
         SpawnMapEvent, SpawnMapProjectEvent, TilesetTextures,
     };
+
+    // Integration (if enabled)
+    #[cfg(feature = "integration")]
+    pub use crate::{IntegrationRegistry, PluginManager, PluginMeta};
 }

@@ -435,6 +435,26 @@ impl Plugin for EditorPlugin {
             .add_systems(Startup, setup_editor_camera)
             .add_systems(Update, handle_keyboard_shortcuts)
             .add_systems(Update, handle_recent_projects);
+
+        // Plugin integration system
+        #[cfg(feature = "integrations")]
+        {
+            use bevy_map_integration::prelude::*;
+
+            let mut manager = PluginManager::from_default_config().unwrap_or_default();
+            if let Err(e) = manager.sync_plugins() {
+                bevy::log::warn!("Plugin sync failed: {e}");
+            }
+            if let Err(e) = manager.load_metadata() {
+                bevy::log::warn!("Plugin metadata load failed: {e}");
+            }
+
+            let mut registry = IntegrationRegistry::default();
+            for (_name, meta) in manager.plugins() {
+                registry.register_plugin(meta.clone());
+            }
+            app.insert_resource(registry);
+        }
     }
 }
 

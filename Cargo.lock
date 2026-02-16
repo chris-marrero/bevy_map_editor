@@ -1299,7 +1299,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "bevy_map_animation",
@@ -1307,13 +1307,14 @@ dependencies = [
  "bevy_map_core",
  "bevy_map_derive",
  "bevy_map_dialogue",
+ "bevy_map_integration",
  "bevy_map_runtime",
  "bevy_map_schema",
 ]
 
 [[package]]
 name = "bevy_map_animation"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "serde",
@@ -1323,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_autotile"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy_map_core",
  "log",
@@ -1335,7 +1336,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_codegen"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy_map_core",
  "bevy_map_schema",
@@ -1349,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_core"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "bevy_map_animation",
@@ -1361,7 +1362,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_derive"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1370,7 +1371,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_dialogue"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "serde",
@@ -1380,7 +1381,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_editor"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy",
  "bevy_ecs_tilemap",
@@ -1390,6 +1391,7 @@ dependencies = [
  "bevy_map_codegen",
  "bevy_map_core",
  "bevy_map_dialogue",
+ "bevy_map_integration",
  "bevy_map_runtime",
  "bevy_map_schema",
  "directories",
@@ -1398,6 +1400,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "toml",
  "uuid",
 ]
 
@@ -1415,8 +1418,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_map_integration"
+version = "0.5.0"
+dependencies = [
+ "bevy",
+ "bevy_egui",
+ "serde",
+ "tempfile",
+ "toml",
+]
+
+[[package]]
 name = "bevy_map_runtime"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "avian2d",
  "bevy",
@@ -1433,7 +1447,7 @@ dependencies = [
 
 [[package]]
 name = "bevy_map_schema"
-version = "0.3.1"
+version = "0.5.0"
 dependencies = [
  "bevy_map_core",
  "serde",
