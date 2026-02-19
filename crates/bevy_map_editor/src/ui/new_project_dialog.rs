@@ -3,6 +3,7 @@
 use bevy_egui::egui;
 
 use crate::project::Project;
+use crate::ui::{DialogBinds, DialogKind};
 use crate::EditorState;
 
 /// Render the New Project dialog
@@ -10,6 +11,7 @@ pub fn render_new_project_dialog(
     ctx: &egui::Context,
     editor_state: &mut EditorState,
     project: &mut Project,
+    dialog_binds: &mut DialogBinds,
 ) {
     if !editor_state.show_new_project_dialog {
         return;
@@ -45,7 +47,9 @@ pub fn render_new_project_dialog(
                 ui.add_sized([250.0, 20.0], egui::Label::new(&path_display).truncate());
 
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() {
+                if ui.button("Browse...").clicked()
+                    || dialog_binds.in_progress(DialogKind::NewProject)
+                {
                     let default_name = if editor_state.new_project_name.is_empty() {
                         "new_project.map.json"
                     } else {
@@ -57,12 +61,11 @@ pub fn render_new_project_dialog(
                         format!("{}.map.json", editor_state.new_project_name)
                     };
 
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Map Project", &["map.json"])
-                        .set_file_name(&file_name)
-                        .save_file()
+                    if let Some(path) = dialog_binds
+                        .set_file_name(file_name)
+                        .spawn_and_poll(DialogKind::NewProject)
                     {
-                        editor_state.new_project_save_path = Some(path);
+                        editor_state.new_project_save_path = Some(path.clone());
                     }
                 }
             });

@@ -23,6 +23,7 @@ mod tileset_editor;
 mod toolbar;
 mod tree_view;
 mod world_view;
+mod dialog_box;
 
 pub use animation_editor::{render_animation_editor, AnimationEditorResult, AnimationEditorState};
 pub use asset_browser::{render_asset_browser, AssetBrowserResult, AssetBrowserState};
@@ -59,6 +60,7 @@ use crate::commands::{CommandHistory, TileClipboard};
 use crate::project::{DataInstance, Project};
 use crate::render::RenderState;
 use crate::EditorState;
+use crate::ui::dialog_box::{DialogBinds, DialogKind};
 
 /// Resource to track spritesheet texture loading
 #[derive(Resource, Default)]
@@ -156,6 +158,7 @@ impl Plugin for EditorUiPlugin {
             .init_resource::<TilesetTextureCache>()
             .init_resource::<EntityTextureCache>()
             .init_resource::<UiHoverState>()
+            .init_resource::<DialogBinds>()
             .add_systems(
                 Update,
                 (
@@ -574,8 +577,11 @@ fn render_ui(
     clipboard: Res<TileClipboard>,
     mut ui_hover_state: ResMut<UiHoverState>,
     egui_settings: Query<&mut EguiContextSettings>,
+    mut dialog_binds: ResMut<DialogBinds>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
+
+    ctx.plugin_or_default::<egui_async::EguiAsyncPlugin>();
 
     for mut egui_settings in egui_settings {
         egui_settings.scale_factor = preferences.app_scale;
@@ -599,7 +605,7 @@ fn render_ui(
     );
 
     // New Project dialog
-    new_project_dialog::render_new_project_dialog(ctx, &mut editor_state, &mut project);
+    new_project_dialog::render_new_project_dialog(ctx, &mut editor_state, &mut project, &mut dialog_binds);
 
     // Settings dialog
     settings_dialog::render_settings_dialog(
@@ -1368,13 +1374,14 @@ fn render_ui(
         });
 
     // Dialogs
-    render_dialogs(ctx, &mut editor_state, &mut project, &assets_base_path);
+    render_dialogs(ctx, &mut editor_state, &mut project, &assets_base_path, &mut dialog_binds);
 
     // Game settings dialog
     let game_settings_result = game_settings_dialog::render_game_settings_dialog(
         ctx,
         &mut editor_state.game_settings_dialog,
         &mut project,
+        &mut dialog_binds
     );
     // Handle game settings results (handled in process_edit_actions)
     if game_settings_result.create_project_requested {
@@ -1472,8 +1479,8 @@ fn render_ui(
             }
         }
         // Handle browse button click
-        if result.browse_spritesheet {
-            if let Some(path) = crate::ui::spritesheet_editor::open_spritesheet_dialog() {
+        if result.browse_spritesheet || dialog_binds.in_progress(DialogKind::OpenSpritesheet) {
+            if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::OpenSpritesheet) {
                 let relative_path = assets_base_path.to_relative(std::path::Path::new(&path));
                 let relative_path_str = relative_path.to_string_lossy().to_string();
                 editor_state.spritesheet_editor_state.sheet_path_input = relative_path_str.clone();
@@ -1552,7 +1559,7 @@ fn render_ui(
     }
 
     // Schema Editor (modal window)
-    render_schema_editor(ctx, &mut editor_state, &mut project);
+    render_schema_editor(ctx, &mut editor_state, &mut project, &mut dialog_binds);
 }
 
 /// Render viewport overlay with selection info

@@ -10,6 +10,7 @@ use uuid::Uuid;
 use crate::bevy_cli;
 use crate::external_editor;
 use crate::project::Project;
+use crate::ui::{DialogBinds, DialogKind};
 
 /// State for the game settings dialog
 #[derive(Default)]
@@ -174,6 +175,7 @@ pub fn render_game_settings_dialog(
     ctx: &egui::Context,
     state: &mut GameSettingsDialogState,
     project: &mut Project,
+    dialog_binds: &mut DialogBinds,
 ) -> GameSettingsDialogResult {
     let mut result = GameSettingsDialogResult::default();
 
@@ -241,16 +243,15 @@ pub fn render_game_settings_dialog(
                         .hint_text("C:\\Dev\\Games"),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() {
+                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogKind::ParentDirectory) {
                     let start_dir = if state.parent_directory.is_empty() {
                         std::env::current_dir().unwrap_or_default()
                     } else {
                         PathBuf::from(&state.parent_directory)
                     };
-                    if let Some(path) = rfd::FileDialog::new()
+                    if let Some(path) = dialog_binds
                         .set_directory(start_dir)
-                        .pick_folder()
-                    {
+                        .spawn_and_poll(DialogKind::ParentDirectory) {
                         state.parent_directory = path.to_string_lossy().to_string();
                     }
                 }
@@ -417,11 +418,8 @@ pub fn render_game_settings_dialog(
                         .hint_text("Leave empty for auto-detection"),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Executable", &["exe"])
-                        .pick_file()
-                    {
+                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogKind::VsCode) {
+                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::VsCode) {
                         state.vscode_path = path.to_string_lossy().to_string();
                     }
                 }
