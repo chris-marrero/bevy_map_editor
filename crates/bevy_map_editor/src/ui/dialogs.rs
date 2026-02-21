@@ -1,10 +1,10 @@
 //! Dialog windows for the editor
 
 use crate::project::Project;
+use crate::ui::dialog_box::{DialogBinds, DialogStatus, DialogType};
 use crate::EditorState;
 use crate::{AssetsBasePath, CopyFileCallback};
 use bevy_egui::egui;
-use crate::ui::dialog_box::{DialogBinds, DialogKind};
 
 /// Actions that can be triggered from menus
 #[derive(Debug, Clone, PartialEq)]
@@ -40,7 +40,6 @@ pub enum PendingAction {
     OpenProjectFolder,
 }
 
-
 /// Render all dialogs
 pub fn render_dialogs(
     ctx: &egui::Context,
@@ -65,7 +64,8 @@ pub fn render_dialogs(
             PendingAction::Open => {
                 #[cfg(feature = "native")]
                 {
-                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::Open) {
+                    let status = dialog_binds.spawn_and_poll(DialogType::Open);
+                    if let DialogStatus::Success(path) = status {
                         match Project::load(&path) {
                             Ok(loaded) => {
                                 *project = loaded;
@@ -77,7 +77,7 @@ pub fn render_dialogs(
                                     Some(format!("Failed to load project: {}", e));
                             }
                         }
-                    } else {
+                    } else if let DialogStatus::Pending = status {
                         editor_state.pending_action = Some(action);
                     }
                 }
@@ -114,7 +114,8 @@ pub fn render_dialogs(
             PendingAction::SaveAs => {
                 #[cfg(feature = "native")]
                 {
-                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::SaveAs) {
+                    let status = dialog_binds.spawn_and_poll(DialogType::SaveAs);
+                    if let DialogStatus::Success(path) = status {
                         println!("Saving to: {path:?}");
                         match project.save(&path) {
                             Ok(()) => {
@@ -125,7 +126,7 @@ pub fn render_dialogs(
                                 editor_state.error_message = Some(format!("Failed to save: {}", e));
                             }
                         }
-                    } else {
+                    } else if let DialogStatus::Pending = status {
                         editor_state.pending_action = Some(action);
                     }
                 }
@@ -236,9 +237,11 @@ fn render_new_tileset_dialog(
                 ui.text_edit_singleline(&mut editor_state.new_tileset_path);
                 #[cfg(feature = "native")]
                 if ui.button("Browse...").clicked()
-                    || dialog_binds.in_progress(DialogKind::NewTilesetImage)
+                    || dialog_binds.in_progress(DialogType::NewTilesetImage)
                 {
-                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::NewTilesetImage) {
+                    if let DialogStatus::Success(path) =
+                        dialog_binds.spawn_and_poll(DialogType::NewTilesetImage)
+                    {
                         editor_state.new_tileset_path = path.to_string_lossy().to_string();
                     }
                 }
@@ -500,8 +503,12 @@ fn render_add_tileset_image_dialog(
                         .desired_width(200.0),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogKind::AddImageToTileset) {
-                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::AddImageToTileset) {
+                if ui.button("Browse...").clicked()
+                    || dialog_binds.in_progress(DialogType::AddImageToTileset)
+                {
+                    if let DialogStatus::Success(path) =
+                        dialog_binds.spawn_and_poll(DialogType::AddImageToTileset)
+                    {
                         editor_state.add_image_path = path.to_string_lossy().to_string();
                     }
                 }

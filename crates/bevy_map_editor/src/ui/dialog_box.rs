@@ -1,7 +1,25 @@
-use bevy::prelude::*;
-use egui_async::Bind;
+use bevy::{
+    ecs::{lifecycle::HookContext, world::DeferredWorld},
+    prelude::*,
+};
+use bevy_egui::{EguiContext, PrimaryEguiContext};
+use egui_async::{Bind, EguiAsyncPlugin};
 use rfd::{AsyncFileDialog, FileHandle};
 use std::path::PathBuf;
+
+pub struct DialogBoxPlugin;
+
+impl Plugin for DialogBoxPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<DialogBinds>();
+        app.world_mut()
+            .register_component_hooks::<PrimaryEguiContext>()
+            .on_add(|mut world: DeferredWorld, hook_context: HookContext| {
+                let mut egui_context = world.get_mut::<EguiContext>(hook_context.entity).unwrap();
+                egui_context.get_mut().add_plugin(EguiAsyncPlugin);
+            });
+    }
+}
 
 #[derive(Resource)]
 pub struct DialogBinds {
@@ -15,15 +33,15 @@ impl Default for DialogBinds {
     fn default() -> Self {
         Self {
             binds: vec![
-                DialogKind::Open.into(),
-                DialogKind::OpenSpritesheet.into(),
-                DialogKind::SaveAs.into(),
-                DialogKind::NewTilesetImage.into(),
-                DialogKind::AddImageToTileset.into(),
-                DialogKind::ParentDirectory.into(),
-                DialogKind::NewProject.into(),
-                DialogKind::VsCode.into(),
-                DialogKind::Icon.into(),
+                DialogType::Open.into(),
+                DialogType::OpenSpritesheet.into(),
+                DialogType::SaveAs.into(),
+                DialogType::NewTilesetImage.into(),
+                DialogType::AddImageToTileset.into(),
+                DialogType::ParentDirectory.into(),
+                DialogType::NewProject.into(),
+                DialogType::VsCode.into(),
+                DialogType::Icon.into(),
             ],
             set_directory: None,
             set_file_name: None,
@@ -33,10 +51,10 @@ impl Default for DialogBinds {
 }
 
 impl DialogBinds {
-    pub fn spawn_and_poll(&mut self, kind: DialogKind) -> Option<PathBuf> {
+    pub fn spawn_and_poll(&mut self, dialog: DialogType) -> DialogStatus {
         let mut file_dialog = AsyncFileDialog::new();
 
-        for &(file_name, extensions) in kind.filter() {
+        for &(file_name, extensions) in dialog.filter() {
             file_dialog = file_dialog.add_filter(file_name, extensions)
         }
 
@@ -52,15 +70,19 @@ impl DialogBinds {
             file_dialog = file_dialog.set_title(title);
         }
 
-        let bind = self.get_bind(kind);
-        if let Some(file) =
-            bind.read_or_request(|| async move { kind.open(file_dialog).await.ok_or(()) })
-        {
-            let r = file.clone().map(|file| file.path().to_path_buf()).ok().clone();
+        let bind = self.get_bind(dialog);
+        if let Some(file) = bind.read_or_request(|| async move { dialog.open(file_dialog).await }) {
+            let status = if let Ok(path) = file.clone().map(|f| f.path().to_path_buf()) {
+                DialogStatus::Success(path)
+            } else {
+                DialogStatus::Cancel
+            };
+
             bind.clear();
-            r
+
+            status
         } else {
-            None
+            DialogStatus::Pending
         }
     }
 
@@ -79,16 +101,16 @@ impl DialogBinds {
         self
     }
 
-    pub fn in_progress(&mut self, kind: DialogKind) -> bool {
-        let state = self.get_bind(kind).get_state();
+    pub fn in_progress(&mut self, dialog: DialogType) -> bool {
+        let state = self.get_bind(dialog).get_state();
         state == egui_async::State::Pending || state == egui_async::State::Finished
     }
 
-    fn get_bind(&mut self, kind: DialogKind) -> &mut Bind<FileHandle, ()> {
+    fn get_bind(&mut self, dialog: DialogType) -> &mut Bind<FileHandle, ()> {
         self.binds
             .iter_mut()
             .find_map(|bind| {
-                if kind == bind.kind {
+                if dialog == bind.dialog_type {
                     Some(&mut bind.bind)
                 } else {
                     None
@@ -100,27 +122,33 @@ impl DialogBinds {
 
 #[derive(Debug)]
 struct DialogBind {
-    kind: DialogKind,
+    dialog_type: DialogType,
     bind: Bind<FileHandle, ()>,
 }
 
+pub enum DialogStatus {
+    Success(PathBuf),
+    Pending,
+    Cancel,
+}
+
 impl DialogBind {
-    fn new(kind: DialogKind) -> Self {
+    fn new(dialog_type: DialogType) -> Self {
         Self {
             bind: default(),
-            kind,
+            dialog_type,
         }
     }
 }
 
-impl From<DialogKind> for DialogBind {
-    fn from(kind: DialogKind) -> Self {
-        Self::new(kind)
+impl From<DialogType> for DialogBind {
+    fn from(dialog_type: DialogType) -> Self {
+        Self::new(dialog_type)
     }
 }
 
 #[derive(Debug, PartialEq, Clone, Copy)]
-pub enum DialogKind {
+pub enum DialogType {
     Open,
     OpenSpritesheet,
     SaveAs,
@@ -143,32 +171,33 @@ static ICON: &[FilterPair] = &[
     ("All Files", &["*"]),
 ];
 
-impl DialogKind {
+impl DialogType {
     fn filter(self) -> &'static [FilterPair] {
         match self {
-            DialogKind::Open => MAP_PROJECT,
-            DialogKind::SaveAs => MAP_PROJECT,
-            DialogKind::NewTilesetImage => IMAGE,
-            DialogKind::AddImageToTileset => IMAGE,
-            DialogKind::OpenSpritesheet => SPRITESHEET,
-            DialogKind::ParentDirectory => &[],
-            DialogKind::VsCode => EXECUTABLE,
-            DialogKind::NewProject => MAP_PROJECT,
-            DialogKind::Icon => ICON,
+            DialogType::Open => MAP_PROJECT,
+            DialogType::SaveAs => MAP_PROJECT,
+            DialogType::NewTilesetImage => IMAGE,
+            DialogType::AddImageToTileset => IMAGE,
+            DialogType::OpenSpritesheet => SPRITESHEET,
+            DialogType::ParentDirectory => &[],
+            DialogType::VsCode => EXECUTABLE,
+            DialogType::NewProject => MAP_PROJECT,
+            DialogType::Icon => ICON,
         }
     }
 
-    async fn open(self, file_dialog: AsyncFileDialog) -> Option<FileHandle> {
+    async fn open(self, file_dialog: AsyncFileDialog) -> Result<FileHandle, ()> {
         match self {
-            DialogKind::Open => file_dialog.pick_file().await,
-            DialogKind::SaveAs => file_dialog.save_file().await,
-            DialogKind::NewTilesetImage => file_dialog.pick_file().await,
-            DialogKind::AddImageToTileset => file_dialog.pick_file().await,
-            DialogKind::OpenSpritesheet => file_dialog.pick_file().await,
-            DialogKind::ParentDirectory => file_dialog.pick_folder().await,
-            DialogKind::VsCode => file_dialog.pick_file().await,
-            DialogKind::NewProject => file_dialog.save_file().await,
-            DialogKind::Icon => file_dialog.pick_file().await,
+            DialogType::Open => file_dialog.pick_file().await,
+            DialogType::SaveAs => file_dialog.save_file().await,
+            DialogType::NewTilesetImage => file_dialog.pick_file().await,
+            DialogType::AddImageToTileset => file_dialog.pick_file().await,
+            DialogType::OpenSpritesheet => file_dialog.pick_file().await,
+            DialogType::ParentDirectory => file_dialog.pick_folder().await,
+            DialogType::VsCode => file_dialog.pick_file().await,
+            DialogType::NewProject => file_dialog.save_file().await,
+            DialogType::Icon => file_dialog.pick_file().await,
         }
+        .ok_or(())
     }
 }

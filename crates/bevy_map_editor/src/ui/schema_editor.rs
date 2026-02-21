@@ -6,7 +6,7 @@
 //! - Managing properties on data types with all 13 property types
 //! - Configuring entity type components (Physics, Input, Sprite)
 
-use crate::ui::{DialogBinds, DialogKind};
+use crate::ui::{DialogBinds, DialogType, DialogStatus};
 use bevy_egui::egui;
 use bevy_map_core::{
     ColliderConfig, InputConfig, InputProfile, PhysicsBodyType, PhysicsConfig, SpriteConfig,
@@ -573,12 +573,12 @@ fn render_type_editor(
 
                         #[cfg(not(target_arch = "wasm32"))]
                         if ui.button("Browse...").clicked()
-                            || dialog_binds.in_progress(DialogKind::Icon)
+                            || dialog_binds.in_progress(DialogType::Icon)
                         {
                             dialog_binds.set_title("Select Icon Image");
-                            if let Some(path) = dialog_binds
+                            if let DialogStatus::Success(path) = dialog_binds
                                 .set_title("Select Icon Image")
-                                .spawn_and_poll(DialogKind::Icon)
+                                .spawn_and_poll(DialogType::Icon)
                             {
                                 new_icon = path.to_string_lossy().to_string();
                                 settings_changed = true;

@@ -10,7 +10,7 @@ use uuid::Uuid;
 use crate::bevy_cli;
 use crate::external_editor;
 use crate::project::Project;
-use crate::ui::{DialogBinds, DialogKind};
+use crate::ui::{DialogBinds, DialogStatus, DialogType};
 
 /// State for the game settings dialog
 #[derive(Default)]
@@ -243,15 +243,15 @@ pub fn render_game_settings_dialog(
                         .hint_text("C:\\Dev\\Games"),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogKind::ParentDirectory) {
+                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogType::ParentDirectory) {
                     let start_dir = if state.parent_directory.is_empty() {
                         std::env::current_dir().unwrap_or_default()
                     } else {
                         PathBuf::from(&state.parent_directory)
                     };
-                    if let Some(path) = dialog_binds
+                    if let DialogStatus::Success(path) = dialog_binds
                         .set_directory(start_dir)
-                        .spawn_and_poll(DialogKind::ParentDirectory) {
+                        .spawn_and_poll(DialogType::ParentDirectory) {
                         state.parent_directory = path.to_string_lossy().to_string();
                     }
                 }
@@ -418,8 +418,8 @@ pub fn render_game_settings_dialog(
                         .hint_text("Leave empty for auto-detection"),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogKind::VsCode) {
-                    if let Some(path) = dialog_binds.spawn_and_poll(DialogKind::VsCode) {
+                if ui.button("Browse...").clicked() || dialog_binds.in_progress(DialogType::VsCode) {
+                    if let DialogStatus::Success(path) = dialog_binds.spawn_and_poll(DialogType::VsCode) {
                         state.vscode_path = path.to_string_lossy().to_string();
                     }
                 }

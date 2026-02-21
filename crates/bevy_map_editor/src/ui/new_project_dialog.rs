@@ -3,7 +3,7 @@
 use bevy_egui::egui;
 
 use crate::project::Project;
-use crate::ui::{DialogBinds, DialogKind};
+use crate::ui::{DialogBinds, DialogStatus, DialogType};
 use crate::EditorState;
 
 /// Render the New Project dialog
@@ -48,7 +48,7 @@ pub fn render_new_project_dialog(
 
                 #[cfg(feature = "native")]
                 if ui.button("Browse...").clicked()
-                    || dialog_binds.in_progress(DialogKind::NewProject)
+                    || dialog_binds.in_progress(DialogType::NewProject)
                 {
                     let default_name = if editor_state.new_project_name.is_empty() {
                         "new_project.map.json"
@@ -61,9 +61,9 @@ pub fn render_new_project_dialog(
                         format!("{}.map.json", editor_state.new_project_name)
                     };
 
-                    if let Some(path) = dialog_binds
+                    if let DialogStatus::Success(path) = dialog_binds
                         .set_file_name(file_name)
-                        .spawn_and_poll(DialogKind::NewProject)
+                        .spawn_and_poll(DialogType::NewProject)
                     {
                         editor_state.new_project_save_path = Some(path.clone());
                     }
