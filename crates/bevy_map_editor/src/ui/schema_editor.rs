@@ -6,7 +6,7 @@
 //! - Managing properties on data types with all 13 property types
 //! - Configuring entity type components (Physics, Input, Sprite)
 
-use crate::ui::{DialogBinds, DialogType, DialogStatus};
+use crate::ui::{DialogBinds, DialogStatus, DialogType};
 use bevy_egui::egui;
 use bevy_map_core::{
     ColliderConfig, InputConfig, InputProfile, PhysicsBodyType, PhysicsConfig, SpriteConfig,
