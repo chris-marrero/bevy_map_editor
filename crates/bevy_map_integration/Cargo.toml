@@ -1,0 +1,24 @@
+[package]
+name = "bevy_map_integration"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Plugin integration system for bevy_map_editor"
+
+[features]
+default = []
+editor = ["dep:bevy", "dep:bevy_egui"]
+
+[dependencies]
+serde = { workspace = true }
+toml = { workspace = true }
+bevy = { workspace = true, optional = true }
+bevy_egui = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = "3"
+
+[lints]
+workspace = true

@@ -1412,8 +1412,10 @@ dependencies = [
  "bevy",
  "bevy_map",
  "bevy_map_editor",
+ "bevy_map_integration",
  "serde",
  "serde_json",
+ "toml",
  "uuid",
 ]
 
