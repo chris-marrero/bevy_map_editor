@@ -182,6 +182,8 @@ pub struct UiState {
     pub inspector_width: f32,
     pub asset_browser_height: f32,
     pub asset_browser_state: AssetBrowserState,
+    /// Tracks which integration panels are visible (by name)
+    pub integration_panels: std::collections::HashSet<String>,
 }
 
 impl Default for UiState {
@@ -194,6 +196,7 @@ impl Default for UiState {
             inspector_width: 250.0,
             asset_browser_height: 200.0,
             asset_browser_state: AssetBrowserState::default(),
+            integration_panels: std::collections::HashSet::new(),
         }
     }
 }
@@ -577,6 +580,7 @@ fn render_ui(
     clipboard: Res<TileClipboard>,
     mut ui_hover_state: ResMut<UiHoverState>,
     egui_settings: Query<&mut EguiContextSettings>,
+    integration_registry: Option<Res<bevy_map_integration::registry::IntegrationRegistry>>,
     mut dialog_binds: ResMut<DialogBinds>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
@@ -600,6 +604,7 @@ fn render_ui(
         Some(&history),
         Some(&clipboard),
         &preferences,
+        integration_registry.as_deref(),
     );
 
     // New Project dialog
@@ -618,7 +623,7 @@ fn render_ui(
     );
 
     // Toolbar
-    render_toolbar(ctx, &mut editor_state);
+    render_toolbar(ctx, &mut editor_state, integration_registry.as_deref());
 
     // Left panel - Tree View
     let mut tree_view_result = TreeViewResult::default();
@@ -628,7 +633,12 @@ fn render_ui(
             .default_width(ui_state.tree_view_width)
             .show(ctx, |ui| {
                 ui_state.tree_view_width = ui.available_width();
-                tree_view_result = render_tree_view(ui, &mut editor_state, &mut project);
+                tree_view_result = render_tree_view(
+                    ui,
+                    &mut editor_state,
+                    &mut project,
+                    integration_registry.as_deref(),
+                );
             });
         ui_hover_state.over_tree_view = response.response.contains_pointer();
     }
@@ -655,8 +665,12 @@ fn render_ui(
                             .id_salt("inspector_scroll")
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                inspector_result =
-                                    render_inspector(ui, &mut editor_state, &mut project);
+                                inspector_result = render_inspector(
+                                    ui,
+                                    &mut editor_state,
+                                    &mut project,
+                                    integration_registry.as_deref(),
+                                );
                             });
                     });
 
@@ -1297,6 +1311,15 @@ fn render_ui(
 
     // Bottom panel - Asset Browser
     if ui_state.show_asset_browser {
+        // Populate integration file extensions from registry
+        if let Some(ref registry) = integration_registry {
+            let exts = registry.all_file_extensions();
+            if ui_state.asset_browser_state.filter.integration_extensions != exts {
+                ui_state.asset_browser_state.filter.integration_extensions = exts;
+                ui_state.asset_browser_state.invalidate_cache();
+            }
+        }
+
         let response = egui::TopBottomPanel::bottom("asset_browser")
             .resizable(true)
             .default_height(ui_state.asset_browser_height)
@@ -1307,6 +1330,37 @@ fn render_ui(
                 // TODO: Handle result.file_activated for import actions
             });
         ui_hover_state.over_asset_browser = response.response.contains_pointer();
+    }
+
+    // Integration panels (rendered as floating windows)
+    if let Some(ref registry) = integration_registry {
+        let panels: Vec<_> = registry
+            .ui_contributions()
+            .iter()
+            .filter_map(|ext| {
+                if let bevy_map_integration::editor::EditorExtension::Panel { name, .. } = ext {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for name in &panels {
+            if ui_state.integration_panels.contains(name) {
+                let mut open = true;
+                egui::Window::new(name.as_str())
+                    .open(&mut open)
+                    .resizable(true)
+                    .default_size([300.0, 200.0])
+                    .show(ctx, |_ui| {
+                        // Panel content rendered by Rust companion crate callback
+                    });
+                if !open {
+                    ui_state.integration_panels.remove(name);
+                }
+            }
+        }
     }
 
     // Track modal editor hover state - any modal editor blocks viewport input

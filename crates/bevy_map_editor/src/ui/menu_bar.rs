@@ -1,6 +1,7 @@
 //! Menu bar UI
 
 use bevy_egui::egui;
+use bevy_map_integration::registry::IntegrationRegistry;
 use std::path::PathBuf;
 
 use super::UiState;
@@ -20,6 +21,7 @@ pub fn render_menu_bar(
     history: Option<&CommandHistory>,
     clipboard: Option<&TileClipboard>,
     preferences: &EditorPreferences,
+    integration_registry: Option<&IntegrationRegistry>,
 ) {
     egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
         egui::MenuBar::new().ui(ui, |ui| {
@@ -160,6 +162,40 @@ pub fn render_menu_bar(
                         ui.close();
                     }
                 });
+
+                // Integration panels
+                if let Some(registry) = integration_registry {
+                    let panels: Vec<_> = registry
+                        .ui_contributions()
+                        .iter()
+                        .filter_map(|ext| {
+                            if let bevy_map_integration::editor::EditorExtension::Panel {
+                                name,
+                                ..
+                            } = ext
+                            {
+                                Some(name.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+
+                    if !panels.is_empty() {
+                        ui.separator();
+                        for name in &panels {
+                            let mut visible = ui_state.integration_panels.contains(name);
+                            if ui.checkbox(&mut visible, name.as_str()).clicked() {
+                                if visible {
+                                    ui_state.integration_panels.insert(name.clone());
+                                } else {
+                                    ui_state.integration_panels.remove(name);
+                                }
+                                ui.close();
+                            }
+                        }
+                    }
+                }
             });
 
             // Project menu
@@ -245,6 +281,43 @@ pub fn render_menu_bar(
                     ui.close();
                 }
             });
+
+            // Integrations menu (from EditorExtension::MenuItem contributions)
+            if let Some(registry) = integration_registry {
+                let menu_items: Vec<_> = registry
+                    .ui_contributions()
+                    .iter()
+                    .filter_map(|ext| {
+                        if let bevy_map_integration::editor::EditorExtension::MenuItem {
+                            path,
+                            ..
+                        } = ext
+                        {
+                            Some(path.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
+
+                if !menu_items.is_empty() {
+                    ui.menu_button("Integrations", |ui| {
+                        for path in &menu_items {
+                            // Parse "Category/Item" paths into submenus
+                            let parts: Vec<&str> = path.splitn(2, '/').collect();
+                            if parts.len() == 2 {
+                                ui.menu_button(parts[0], |ui| {
+                                    if ui.button(parts[1]).clicked() {
+                                        ui.close();
+                                    }
+                                });
+                            } else if ui.button(path.as_str()).clicked() {
+                                ui.close();
+                            }
+                        }
+                    });
+                }
+            }
 
             // Help menu
             ui.menu_button("Help", |ui| {

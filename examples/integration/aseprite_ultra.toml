@@ -1,0 +1,86 @@
+# bevy_aseprite_ultra integration metadata
+#
+# This file declares the properties and editor contributions that a companion
+# crate for bevy_aseprite_ultra (v0.8.1, Bevy 0.18) would register with the
+# bevy_map_editor integration system.
+#
+# A real integration crate would embed this TOML and bridge property values
+# to actual bevy_aseprite_ultra components (AsepriteAnimationBundle, etc.).
+
+[plugin]
+name = "bevy_aseprite_ultra"
+version = "0.8.1"
+description = "Aseprite sprite and animation support for bevy_map_editor"
+applies_to = ["animated_sprite", "sprite", "aseprite_entity"]
+
+# ---------------------------------------------------------------------------
+# Properties
+# ---------------------------------------------------------------------------
+
+[[properties]]
+name = "aseprite_file"
+description = "Path to the .aseprite or .ase file"
+required = true
+prop_type = "filepath"
+extensions = ["aseprite", "ase"]
+
+[[properties]]
+name = "animation_tag"
+description = "Tag name of the animation to play"
+prop_type = "string"
+
+[[properties]]
+name = "animation_speed"
+description = "Playback speed multiplier"
+prop_type = "float"
+min = 0.0
+max = 10.0
+default = 1.0
+
+[[properties]]
+name = "animation_direction"
+description = "Direction of animation playback"
+prop_type = "enum"
+variants = ["forward", "backward", "ping_pong"]
+default = "forward"
+
+[[properties]]
+name = "animation_repeat"
+description = "Whether the animation loops or plays a fixed number of times"
+prop_type = "enum"
+variants = ["loop", "count"]
+default = "loop"
+
+[[properties]]
+name = "repeat_count"
+description = "Number of times to play when animation_repeat is 'count'"
+prop_type = "int"
+min = 1.0
+max = 9999.0
+default = 1
+
+[[properties]]
+name = "slice_name"
+description = "Named slice for static sprite display (alternative to animation)"
+prop_type = "string"
+
+# ---------------------------------------------------------------------------
+# Editor contributions
+# ---------------------------------------------------------------------------
+
+[editor]
+inspector_section = "Aseprite Animation"
+file_extensions = ["aseprite", "ase"]
+
+[[editor.contributions]]
+type = "inspector_section"
+name = "Aseprite Animation"
+
+[[editor.contributions]]
+type = "menu_item"
+path = "Plugins/Aseprite Ultra/Settings"
+
+[[editor.contributions]]
+type = "context_menu"
+target = "entity"
+name = "Add Aseprite Animation"

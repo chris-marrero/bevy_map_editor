@@ -51,6 +51,7 @@ pub fn render_inspector(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
     project: &mut Project,
+    integration_registry: Option<&bevy_map_integration::registry::IntegrationRegistry>,
 ) -> InspectorResult {
     let mut result = InspectorResult::default();
 
@@ -68,7 +69,7 @@ pub fn render_inspector(
             render_layer_inspector(ui, *level_id, *layer_idx, project);
         }
         Selection::Entity(level_id, entity_id) => {
-            if render_entity_inspector(ui, *level_id, *entity_id, project) {
+            if render_entity_inspector(ui, *level_id, *entity_id, project, integration_registry) {
                 result.delete_entity = Some((*level_id, *entity_id));
             }
         }
@@ -165,6 +166,7 @@ fn render_entity_inspector(
     level_id: Uuid,
     entity_id: Uuid,
     project: &mut Project,
+    integration_registry: Option<&bevy_map_integration::registry::IntegrationRegistry>,
 ) -> bool {
     let mut should_delete = false;
 
@@ -327,6 +329,45 @@ fn render_entity_inspector(
             type_config,
             &animation_names,
         );
+    }
+
+    // Plugin properties section (from integration plugins)
+    if let Some(registry) = integration_registry {
+        let plugin_props = registry.properties_for_entity(&type_name);
+        if !plugin_props.is_empty() {
+            render_plugin_properties(
+                ui,
+                entity_id,
+                &mut entity.properties,
+                &plugin_props,
+                registry,
+            );
+        }
+
+        // InspectorSection contributions from Rust companion crates
+        let sections: Vec<_> = registry
+            .ui_contributions()
+            .iter()
+            .filter_map(|ext| {
+                if let bevy_map_integration::editor::EditorExtension::InspectorSection {
+                    name,
+                    ..
+                } = ext
+                {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for name in &sections {
+            egui::CollapsingHeader::new(name.as_str())
+                .default_open(true)
+                .show(ui, |_ui| {
+                    // Content rendered by Rust companion crate callback
+                });
+        }
     }
 
     ui.separator();
@@ -1493,4 +1534,269 @@ fn render_override_field_f32_opt(
 ) {
     // Same as render_override_field_f32 for now
     render_override_field_f32(ui, label, id, value, default, speed);
+}
+
+// =============================================================================
+// Plugin integration properties
+// =============================================================================
+
+/// Render properties contributed by integration plugins.
+fn render_plugin_properties(
+    ui: &mut egui::Ui,
+    entity_id: Uuid,
+    properties: &mut std::collections::HashMap<String, bevy_map_core::Value>,
+    plugin_props: &[(
+        &bevy_map_integration::plugin_meta::PluginInfo,
+        &bevy_map_integration::plugin_meta::PropertyDef,
+    )],
+    registry: &bevy_map_integration::registry::IntegrationRegistry,
+) {
+    use bevy_map_core::Value;
+    use bevy_map_integration::plugin_meta::PropertyType;
+
+    // Group properties by their plugin's inspector section (or plugin name)
+    let mut sections: std::collections::HashMap<
+        String,
+        Vec<(
+            &bevy_map_integration::plugin_meta::PluginInfo,
+            &bevy_map_integration::plugin_meta::PropertyDef,
+        )>,
+    > = std::collections::HashMap::new();
+
+    for (info, prop) in plugin_props {
+        let section = registry
+            .inspector_section(&info.name)
+            .unwrap_or(&info.name)
+            .to_string();
+        sections.entry(section).or_default().push((info, prop));
+    }
+
+    let mut section_names: Vec<_> = sections.keys().cloned().collect();
+    section_names.sort();
+
+    for section_name in section_names {
+        let props = &sections[&section_name];
+
+        ui.separator();
+        egui::CollapsingHeader::new(&section_name)
+            .default_open(true)
+            .show(ui, |ui| {
+                for (info, prop_def) in props {
+                    // Ensure property exists with default value
+                    if !properties.contains_key(&prop_def.name) {
+                        properties.insert(prop_def.name.clone(), plugin_property_default(prop_def));
+                    }
+
+                    let value = properties.get_mut(&prop_def.name).unwrap();
+                    let id_salt = format!("plugin_{}_{}_{}", info.name, entity_id, prop_def.name);
+
+                    // Label with tooltip and required indicator
+                    ui.horizontal(|ui| {
+                        let label_response = ui.label(&prop_def.name);
+                        if let Some(desc) = &prop_def.description {
+                            label_response.on_hover_text(desc);
+                        }
+                        if prop_def.required {
+                            ui.colored_label(egui::Color32::RED, "*");
+                        }
+                    });
+
+                    // Render widget based on property type
+                    match prop_def.prop_type {
+                        PropertyType::String => {
+                            let mut s = value.as_string().unwrap_or_default().to_string();
+                            if ui.text_edit_singleline(&mut s).changed() {
+                                *value = Value::String(s);
+                            }
+                        }
+                        PropertyType::Int => {
+                            let mut i = value.as_int().unwrap_or(0);
+                            let mut dv = egui::DragValue::new(&mut i);
+                            if let Some(min) = prop_def.min {
+                                dv = dv.range((min as i64)..=i64::MAX);
+                            }
+                            if let Some(max) = prop_def.max {
+                                dv = dv.range(i64::MIN..=(max as i64));
+                            }
+                            if let (Some(min), Some(max)) = (prop_def.min, prop_def.max) {
+                                dv = dv.range((min as i64)..=(max as i64));
+                            }
+                            if ui.add(dv).changed() {
+                                *value = Value::Int(i);
+                            }
+                        }
+                        PropertyType::Float => {
+                            let mut f = value.as_float().unwrap_or(0.0);
+                            let mut dv = egui::DragValue::new(&mut f).speed(0.1);
+                            if let (Some(min), Some(max)) = (prop_def.min, prop_def.max) {
+                                dv = dv.range(min..=max);
+                            }
+                            if ui.add(dv).changed() {
+                                *value = Value::Float(f);
+                            }
+                        }
+                        PropertyType::Bool => {
+                            let mut b = value.as_bool().unwrap_or(false);
+                            if ui.checkbox(&mut b, "").changed() {
+                                *value = Value::Bool(b);
+                            }
+                        }
+                        PropertyType::FilePath => {
+                            let mut s = value.as_string().unwrap_or_default().to_string();
+                            ui.horizontal(|ui| {
+                                if ui.text_edit_singleline(&mut s).changed() {
+                                    *value = Value::String(s.clone());
+                                }
+                                #[cfg(feature = "native")]
+                                if ui.button("Browse...").clicked() {
+                                    let mut dialog = rfd::FileDialog::new();
+                                    if let Some(exts) = &prop_def.extensions {
+                                        let ext_refs: Vec<&str> =
+                                            exts.iter().map(|s| s.as_str()).collect();
+                                        dialog = dialog.add_filter("Supported files", &ext_refs);
+                                    }
+                                    if let Some(path) = dialog.pick_file() {
+                                        let path_str = path.to_string_lossy().to_string();
+                                        *value = Value::String(path_str);
+                                    }
+                                }
+                            });
+                        }
+                        PropertyType::Enum => {
+                            let current = value.as_string().unwrap_or_default().to_string();
+                            if let Some(variants) = &prop_def.variants {
+                                let mut selected = current.clone();
+                                egui::ComboBox::from_id_salt(&id_salt)
+                                    .selected_text(&selected)
+                                    .show_ui(ui, |ui| {
+                                        for variant in variants {
+                                            ui.selectable_value(
+                                                &mut selected,
+                                                variant.clone(),
+                                                variant,
+                                            );
+                                        }
+                                    });
+                                if selected != current {
+                                    *value = Value::String(selected);
+                                }
+                            } else {
+                                // Fallback to text input if no variants defined
+                                let mut s = current;
+                                if ui.text_edit_singleline(&mut s).changed() {
+                                    *value = Value::String(s);
+                                }
+                            }
+                        }
+                        PropertyType::Point => {
+                            let (mut x, mut y) = match value {
+                                Value::Object(obj) => {
+                                    let x = obj.get("x").and_then(|v| v.as_float()).unwrap_or(0.0);
+                                    let y = obj.get("y").and_then(|v| v.as_float()).unwrap_or(0.0);
+                                    (x, y)
+                                }
+                                _ => (0.0, 0.0),
+                            };
+                            let mut changed = false;
+                            ui.horizontal(|ui| {
+                                if ui
+                                    .add(egui::DragValue::new(&mut x).speed(1.0).prefix("X: "))
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                                if ui
+                                    .add(egui::DragValue::new(&mut y).speed(1.0).prefix("Y: "))
+                                    .changed()
+                                {
+                                    changed = true;
+                                }
+                            });
+                            if changed {
+                                let mut obj = std::collections::HashMap::new();
+                                obj.insert("x".to_string(), Value::Float(x));
+                                obj.insert("y".to_string(), Value::Float(y));
+                                *value = Value::Object(obj);
+                            }
+                        }
+                        PropertyType::Color => {
+                            let mut color = match value {
+                                Value::String(hex) => parse_hex_color(hex),
+                                _ => [1.0, 1.0, 1.0],
+                            };
+                            if ui.color_edit_button_rgb(&mut color).changed() {
+                                *value = Value::String(format!(
+                                    "#{:02x}{:02x}{:02x}",
+                                    (color[0] * 255.0) as u8,
+                                    (color[1] * 255.0) as u8,
+                                    (color[2] * 255.0) as u8,
+                                ));
+                            }
+                        }
+                    }
+                }
+            });
+    }
+}
+
+/// Get a default value for a plugin property.
+fn plugin_property_default(
+    prop: &bevy_map_integration::plugin_meta::PropertyDef,
+) -> bevy_map_core::Value {
+    use bevy_map_core::Value;
+    use bevy_map_integration::plugin_meta::PropertyType;
+
+    // Use explicit default if provided
+    if let Some(default) = &prop.default {
+        return toml_value_to_core_value(default);
+    }
+
+    match prop.prop_type {
+        PropertyType::String | PropertyType::FilePath | PropertyType::Enum => {
+            Value::String(String::new())
+        }
+        PropertyType::Int => Value::Int(0),
+        PropertyType::Float => Value::Float(0.0),
+        PropertyType::Bool => Value::Bool(false),
+        PropertyType::Point => {
+            let mut obj = std::collections::HashMap::new();
+            obj.insert("x".to_string(), Value::Float(0.0));
+            obj.insert("y".to_string(), Value::Float(0.0));
+            Value::Object(obj)
+        }
+        PropertyType::Color => Value::String("#ffffff".to_string()),
+    }
+}
+
+/// Convert a TOML value to our core Value type.
+fn toml_value_to_core_value(v: &toml::Value) -> bevy_map_core::Value {
+    use bevy_map_core::Value;
+    match v {
+        toml::Value::String(s) => Value::String(s.clone()),
+        toml::Value::Integer(i) => Value::Int(*i),
+        toml::Value::Float(f) => Value::Float(*f),
+        toml::Value::Boolean(b) => Value::Bool(*b),
+        toml::Value::Array(arr) => Value::Array(arr.iter().map(toml_value_to_core_value).collect()),
+        toml::Value::Table(t) => Value::Object(
+            t.iter()
+                .map(|(k, v)| (k.clone(), toml_value_to_core_value(v)))
+                .collect(),
+        ),
+        toml::Value::Datetime(d) => Value::String(d.to_string()),
+    }
+}
+
+/// Parse a hex color string like `#ff0000` into an RGB float array.
+fn parse_hex_color(hex: &str) -> [f32; 3] {
+    let hex = hex.trim_start_matches('#');
+    if hex.len() >= 6 {
+        if let (Ok(r), Ok(g), Ok(b)) = (
+            u8::from_str_radix(&hex[0..2], 16),
+            u8::from_str_radix(&hex[2..4], 16),
+            u8::from_str_radix(&hex[4..6], 16),
+        ) {
+            return [r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0];
+        }
+    }
+    [1.0, 1.0, 1.0]
 }

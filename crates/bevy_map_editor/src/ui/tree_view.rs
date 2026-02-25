@@ -1,6 +1,7 @@
 //! Project tree view panel
 
 use bevy_egui::egui;
+use bevy_map_integration::registry::IntegrationRegistry;
 use uuid::Uuid;
 
 use super::Selection;
@@ -99,6 +100,7 @@ pub fn render_tree_view(
     ui: &mut egui::Ui,
     editor_state: &mut EditorState,
     project: &mut Project,
+    integration_registry: Option<&IntegrationRegistry>,
 ) -> TreeViewResult {
     let mut result = TreeViewResult::default();
 
@@ -112,7 +114,7 @@ pub fn render_tree_view(
             egui::CollapsingHeader::new("Levels")
                 .default_open(true)
                 .show(ui, |ui| {
-                    render_levels_section(ui, editor_state, project, &mut result);
+                    render_levels_section(ui, editor_state, project, &mut result, integration_registry);
                 });
 
             // Tilesets section
@@ -395,6 +397,8 @@ pub fn render_tree_view(
                                                                 }
                                                             }
                                                         }
+                                                        // Integration context menu items
+                                                        render_integration_context_menu(ui, bevy_map_integration::editor::ContextMenuTarget::Entity, integration_registry);
                                                     });
                                                 }
                                             }
@@ -448,6 +452,7 @@ fn render_levels_section(
     editor_state: &mut EditorState,
     project: &Project,
     result: &mut TreeViewResult,
+    integration_registry: Option<&IntegrationRegistry>,
 ) {
     // Get placeable types from schema for entity grouping
     let placeable_types: Vec<String> = project
@@ -555,6 +560,7 @@ fn render_levels_section(
                                 &level_entities,
                                 &placeable_types,
                                 project,
+                                integration_registry,
                             );
                         } else {
                             // Tile layer: simple horizontal layout
@@ -567,6 +573,7 @@ fn render_levels_section(
                                 layer_name,
                                 *visible,
                                 layer_selected,
+                                integration_registry,
                             );
                         }
                     }
@@ -630,6 +637,7 @@ fn render_tile_layer(
     layer_name: &str,
     visible: bool,
     layer_selected: bool,
+    integration_registry: Option<&IntegrationRegistry>,
 ) {
     // Check if this layer is being renamed
     let is_renaming = matches!(
@@ -691,6 +699,12 @@ fn render_tile_layer(
                     result.delete_layer = Some((level_id, layer_idx));
                     ui.close();
                 }
+                // Integration context menu items
+                render_integration_context_menu(
+                    ui,
+                    bevy_map_integration::editor::ContextMenuTarget::Layer,
+                    integration_registry,
+                );
             });
         }
     });
@@ -711,6 +725,7 @@ fn render_object_layer(
     level_entities: &[(Uuid, String, [f32; 2], String)],
     placeable_types: &[String],
     project: &Project,
+    integration_registry: Option<&IntegrationRegistry>,
 ) {
     // Get entities on this layer
     let layer_entities: Vec<_> = level_entities
@@ -827,6 +842,8 @@ fn render_object_layer(
                                             result.delete_entity = Some((level_id, *entity_id));
                                             ui.close();
                                         }
+                                        // Integration context menu items
+                                        render_integration_context_menu(ui, bevy_map_integration::editor::ContextMenuTarget::Entity, integration_registry);
                                     });
                                 }
                             });
@@ -869,6 +886,8 @@ fn render_object_layer(
                     result.delete_layer = Some((level_id, layer_idx));
                     ui.close();
                 }
+                // Integration context menu items
+                render_integration_context_menu(ui, bevy_map_integration::editor::ContextMenuTarget::Layer, integration_registry);
             });
         }
     });
@@ -1064,5 +1083,46 @@ fn render_dialogues_section(
 
     if ui.button("+ New Dialogue").clicked() {
         result.create_dialogue = true;
+    }
+}
+
+/// Render integration context menu items for a given target type.
+fn render_integration_context_menu(
+    ui: &mut egui::Ui,
+    target: bevy_map_integration::editor::ContextMenuTarget,
+    integration_registry: Option<&IntegrationRegistry>,
+) {
+    let Some(registry) = integration_registry else {
+        return;
+    };
+
+    let items: Vec<_> = registry
+        .ui_contributions()
+        .iter()
+        .filter_map(|ext| {
+            if let bevy_map_integration::editor::EditorExtension::ContextMenu {
+                target: t,
+                name,
+                ..
+            } = ext
+            {
+                if *t == target {
+                    Some(name.clone())
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
+        })
+        .collect();
+
+    if !items.is_empty() {
+        ui.separator();
+        for name in &items {
+            if ui.button(name.as_str()).clicked() {
+                ui.close();
+            }
+        }
     }
 }

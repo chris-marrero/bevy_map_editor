@@ -14,11 +14,14 @@ bevy = { workspace = true }
 bevy_map = { workspace = true, features = ["physics"] }
 # Editor (for custom_editor example only)
 bevy_map_editor = { workspace = true, features = ["runtime"] }
+# Integration API (for integration examples)
+bevy_map_integration = { workspace = true }
 # For physics examples
 avian2d = { workspace = true }
 # Serialization (for manual loading examples)
 serde = { workspace = true }
 serde_json = { workspace = true }
+toml = { workspace = true }
 uuid = { workspace = true }
 
 [[example]]
@@ -64,6 +67,11 @@ path = "tileset/demo.rs"
 [[example]]
 name = "collision_demo"
 path = "collision/demo.rs"
+
+# Integration API demo
+[[example]]
+name = "integration_demo"
+path = "integration/demo.rs"
 
 [lints]
 workspace = true

@@ -12,6 +12,10 @@ pub struct FileFilter {
     pub show_folders: bool,
     pub search_text: String,
     pub custom_extensions: String,
+    /// File extensions contributed by integration plugins (populated from IntegrationRegistry)
+    pub integration_extensions: Vec<String>,
+    /// Whether to show files matching integration plugin extensions
+    pub show_integration: bool,
 }
 
 impl Default for FileFilter {
@@ -23,6 +27,8 @@ impl Default for FileFilter {
             show_folders: true,
             search_text: String::new(),
             custom_extensions: String::new(),
+            integration_extensions: Vec::new(),
+            show_integration: true,
         }
     }
 }
@@ -264,16 +270,26 @@ impl AssetBrowserState {
                 false
             };
 
+            // Check integration plugin extensions
+            let integration_match = self.filter.show_integration
+                && !self.filter.integration_extensions.is_empty()
+                && entry.extension.as_ref().map_or(false, |ext| {
+                    self.filter
+                        .integration_extensions
+                        .iter()
+                        .any(|ie| ie.eq_ignore_ascii_case(ext))
+                });
+
             // Check search text (use cached lowercase name)
             let search_match = search_lower.is_empty() || entry.name_lower.contains(&search_lower);
 
-            (type_match
-                || custom_match
-                || custom_exts.is_empty()
-                    && !self.filter.show_images
-                    && !self.filter.show_audio
-                    && !self.filter.show_json)
-                && search_match
+            let has_any_filter = self.filter.show_images
+                || self.filter.show_audio
+                || self.filter.show_json
+                || !custom_exts.is_empty()
+                || (self.filter.show_integration && !self.filter.integration_extensions.is_empty());
+
+            (type_match || custom_match || integration_match || !has_any_filter) && search_match
         });
 
         // Sort - directories first, then by sort order
@@ -372,6 +388,9 @@ pub fn render_asset_browser(
         ui.checkbox(&mut state.filter.show_json, "JSON");
         ui.checkbox(&mut state.filter.show_audio, "Audio");
         ui.checkbox(&mut state.filter.show_folders, "Folders");
+        if !state.filter.integration_extensions.is_empty() {
+            ui.checkbox(&mut state.filter.show_integration, "Plugins");
+        }
 
         ui.separator();
 

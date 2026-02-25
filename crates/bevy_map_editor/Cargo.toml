@@ -22,6 +22,8 @@ bevy_map_animation = { workspace = true }
 bevy_map_dialogue = { workspace = true }
 bevy_map_codegen = { workspace = true }
 bevy_map_runtime = { workspace = true, optional = true }
+bevy_map_integration = { workspace = true, features = ["editor"] }
+toml = { workspace = true }
 bevy = { workspace = true }
 bevy_ecs_tilemap = { workspace = true }
 bevy_egui = { workspace = true }
@@ -37,9 +39,10 @@ egui-async = "0.3"
 rfd = { workspace = true, optional = true }
 
 [features]
-default = ["native"]
+default = ["native", "integrations"]
 native = ["rfd"]
 runtime = ["bevy_map_runtime"]
+integrations = []
 wasm = []
 
 [lints]
