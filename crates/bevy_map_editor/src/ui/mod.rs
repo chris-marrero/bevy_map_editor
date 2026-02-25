@@ -5,6 +5,7 @@
 mod animation_editor;
 mod asset_browser;
 mod code_preview_dialog;
+mod dialog_box;
 mod dialogs;
 mod dialogue_editor;
 mod entity_palette;
@@ -58,6 +59,7 @@ use uuid::Uuid;
 use crate::commands::{CommandHistory, TileClipboard};
 use crate::project::{DataInstance, Project};
 use crate::render::RenderState;
+use crate::ui::dialog_box::{DialogBinds, DialogBoxPlugin, DialogStatus, DialogType};
 use crate::EditorState;
 
 /// Resource to track spritesheet texture loading
@@ -156,6 +158,7 @@ impl Plugin for EditorUiPlugin {
             .init_resource::<TilesetTextureCache>()
             .init_resource::<EntityTextureCache>()
             .init_resource::<UiHoverState>()
+            .add_plugins(DialogBoxPlugin)
             .add_systems(
                 Update,
                 (
@@ -578,6 +581,7 @@ fn render_ui(
     mut ui_hover_state: ResMut<UiHoverState>,
     egui_settings: Query<&mut EguiContextSettings>,
     integration_registry: Option<Res<bevy_map_integration::registry::IntegrationRegistry>>,
+    mut dialog_binds: ResMut<DialogBinds>,
 ) {
     let Ok(ctx) = contexts.ctx_mut() else { return };
 
@@ -604,7 +608,12 @@ fn render_ui(
     );
 
     // New Project dialog
-    new_project_dialog::render_new_project_dialog(ctx, &mut editor_state, &mut project);
+    new_project_dialog::render_new_project_dialog(
+        ctx,
+        &mut editor_state,
+        &mut project,
+        &mut dialog_binds,
+    );
 
     // Settings dialog
     settings_dialog::render_settings_dialog(
@@ -1422,13 +1431,20 @@ fn render_ui(
         });
 
     // Dialogs
-    render_dialogs(ctx, &mut editor_state, &mut project, &assets_base_path);
+    render_dialogs(
+        ctx,
+        &mut editor_state,
+        &mut project,
+        &assets_base_path,
+        &mut dialog_binds,
+    );
 
     // Game settings dialog
     let game_settings_result = game_settings_dialog::render_game_settings_dialog(
         ctx,
         &mut editor_state.game_settings_dialog,
         &mut project,
+        &mut dialog_binds,
     );
     // Handle game settings results (handled in process_edit_actions)
     if game_settings_result.create_project_requested {
@@ -1526,8 +1542,10 @@ fn render_ui(
             }
         }
         // Handle browse button click
-        if result.browse_spritesheet {
-            if let Some(path) = crate::ui::spritesheet_editor::open_spritesheet_dialog() {
+        if result.browse_spritesheet || dialog_binds.in_progress(DialogType::OpenSpritesheet) {
+            if let DialogStatus::Success(path) =
+                dialog_binds.spawn_and_poll(DialogType::OpenSpritesheet)
+            {
                 let relative_path = assets_base_path.to_relative(std::path::Path::new(&path));
                 let relative_path_str = relative_path.to_string_lossy().to_string();
                 editor_state.spritesheet_editor_state.sheet_path_input = relative_path_str.clone();
@@ -1606,7 +1624,7 @@ fn render_ui(
     }
 
     // Schema Editor (modal window)
-    render_schema_editor(ctx, &mut editor_state, &mut project);
+    render_schema_editor(ctx, &mut editor_state, &mut project, &mut dialog_binds);
 }
 
 /// Render viewport overlay with selection info
