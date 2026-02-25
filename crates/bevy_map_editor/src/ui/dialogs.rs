@@ -1,10 +1,10 @@
 //! Dialog windows for the editor
 
-use bevy_egui::egui;
-
 use crate::project::Project;
+use crate::ui::dialog_box::{DialogBinds, DialogStatus, DialogType};
 use crate::EditorState;
 use crate::{AssetsBasePath, CopyFileCallback};
+use bevy_egui::egui;
 
 /// Actions that can be triggered from menus
 #[derive(Debug, Clone, PartialEq)]
@@ -46,10 +46,11 @@ pub fn render_dialogs(
     editor_state: &mut EditorState,
     project: &mut Project,
     assets_base_path: &AssetsBasePath,
+    dialog_binds: &mut DialogBinds,
 ) {
     render_new_level_dialog(ctx, editor_state, project);
-    render_new_tileset_dialog(ctx, editor_state, project, assets_base_path);
-    render_add_tileset_image_dialog(ctx, editor_state, project, assets_base_path);
+    render_new_tileset_dialog(ctx, editor_state, project, dialog_binds, assets_base_path);
+    render_add_tileset_image_dialog(ctx, editor_state, project, dialog_binds, assets_base_path);
     render_copy_file_dialog(ctx, editor_state, project, assets_base_path);
     render_about_dialog(ctx, editor_state);
     render_error_dialog(ctx, editor_state);
@@ -63,21 +64,21 @@ pub fn render_dialogs(
             PendingAction::Open => {
                 #[cfg(feature = "native")]
                 {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Map Project", &["map.json", "json"])
-                        .pick_file()
-                    {
+                    let status = dialog_binds.spawn_and_poll(DialogType::Open);
+                    if let DialogStatus::Success(path) = status {
                         match Project::load(&path) {
                             Ok(loaded) => {
                                 *project = loaded;
                                 // Add to recent projects
-                                editor_state.pending_add_recent_project = Some(path);
+                                editor_state.pending_add_recent_project = Some(path.clone());
                             }
                             Err(e) => {
                                 editor_state.error_message =
                                     Some(format!("Failed to load project: {}", e));
                             }
                         }
+                    } else if let DialogStatus::Pending = status {
+                        editor_state.pending_action = Some(action);
                     }
                 }
             }
@@ -113,10 +114,9 @@ pub fn render_dialogs(
             PendingAction::SaveAs => {
                 #[cfg(feature = "native")]
                 {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Map Project", &["map.json", "json"])
-                        .save_file()
-                    {
+                    let status = dialog_binds.spawn_and_poll(DialogType::SaveAs);
+                    if let DialogStatus::Success(path) = status {
+                        println!("Saving to: {path:?}");
                         match project.save(&path) {
                             Ok(()) => {
                                 // Add to recent projects
@@ -126,6 +126,8 @@ pub fn render_dialogs(
                                 editor_state.error_message = Some(format!("Failed to save: {}", e));
                             }
                         }
+                    } else if let DialogStatus::Pending = status {
+                        editor_state.pending_action = Some(action);
                     }
                 }
             }
@@ -195,6 +197,7 @@ fn render_new_tileset_dialog(
     ctx: &egui::Context,
     editor_state: &mut EditorState,
     project: &mut Project,
+    dialog_binds: &mut DialogBinds,
     _assets_base_path: &AssetsBasePath,
 ) {
     if !editor_state.show_new_tileset_dialog {
@@ -233,10 +236,11 @@ fn render_new_tileset_dialog(
                 ui.label("Image Path:");
                 ui.text_edit_singleline(&mut editor_state.new_tileset_path);
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Images", &["png", "jpg", "jpeg"])
-                        .pick_file()
+                if ui.button("Browse...").clicked()
+                    || dialog_binds.in_progress(DialogType::NewTilesetImage)
+                {
+                    if let DialogStatus::Success(path) =
+                        dialog_binds.spawn_and_poll(DialogType::NewTilesetImage)
                     {
                         editor_state.new_tileset_path = path.to_string_lossy().to_string();
                     }
@@ -457,6 +461,7 @@ fn render_add_tileset_image_dialog(
     ctx: &egui::Context,
     editor_state: &mut EditorState,
     project: &mut Project,
+    dialog_binds: &mut DialogBinds,
     _assets_base_path: &AssetsBasePath,
 ) {
     if !editor_state.show_add_tileset_image_dialog {
@@ -498,10 +503,11 @@ fn render_add_tileset_image_dialog(
                         .desired_width(200.0),
                 );
                 #[cfg(feature = "native")]
-                if ui.button("Browse...").clicked() {
-                    if let Some(path) = rfd::FileDialog::new()
-                        .add_filter("Images", &["png", "jpg", "jpeg"])
-                        .pick_file()
+                if ui.button("Browse...").clicked()
+                    || dialog_binds.in_progress(DialogType::AddImageToTileset)
+                {
+                    if let DialogStatus::Success(path) =
+                        dialog_binds.spawn_and_poll(DialogType::AddImageToTileset)
                     {
                         editor_state.add_image_path = path.to_string_lossy().to_string();
                     }

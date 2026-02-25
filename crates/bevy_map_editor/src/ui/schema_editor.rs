@@ -6,6 +6,7 @@
 //! - Managing properties on data types with all 13 property types
 //! - Configuring entity type components (Physics, Input, Sprite)
 
+use crate::ui::{DialogBinds, DialogStatus, DialogType};
 use bevy_egui::egui;
 use bevy_map_core::{
     ColliderConfig, InputConfig, InputProfile, PhysicsBodyType, PhysicsConfig, SpriteConfig,
@@ -148,6 +149,7 @@ pub fn render_schema_editor(
     ctx: &egui::Context,
     editor_state: &mut crate::EditorState,
     project: &mut crate::project::Project,
+    dialog_binds: &mut DialogBinds,
 ) {
     if !editor_state.show_schema_editor {
         return;
@@ -187,9 +189,12 @@ pub fn render_schema_editor(
                 SchemaTab::Enums => {
                     render_enums_tab(ui, &mut editor_state.schema_editor_state, project)
                 }
-                SchemaTab::DataTypes => {
-                    render_data_types_tab(ui, &mut editor_state.schema_editor_state, project)
-                }
+                SchemaTab::DataTypes => render_data_types_tab(
+                    ui,
+                    &mut editor_state.schema_editor_state,
+                    project,
+                    dialog_binds,
+                ),
             }
         });
 
@@ -342,6 +347,7 @@ fn render_data_types_tab(
     ui: &mut egui::Ui,
     state: &mut SchemaEditorState,
     project: &mut crate::project::Project,
+    dialog_binds: &mut DialogBinds,
 ) {
     // Left panel - Type list
     egui::SidePanel::left("type_list")
@@ -418,7 +424,7 @@ fn render_data_types_tab(
     // Right panel - Type details
     egui::CentralPanel::default().show_inside(ui, |ui| {
         if let Some(type_name) = state.selected_type.clone() {
-            render_type_editor(ui, state, project, &type_name);
+            render_type_editor(ui, state, project, &type_name, dialog_binds);
         } else {
             ui.label("Select a data type to edit");
         }
@@ -431,6 +437,7 @@ fn render_type_editor(
     state: &mut SchemaEditorState,
     project: &mut crate::project::Project,
     type_name: &str,
+    dialog_binds: &mut DialogBinds,
 ) {
     // First check if type exists
     if !project.schema.data_types.contains_key(type_name) {
@@ -565,9 +572,15 @@ fn render_type_editor(
                         ui.label(&display_text);
 
                         #[cfg(not(target_arch = "wasm32"))]
-                        if ui.button("Browse...").clicked() {
-                            if let Some(path) = open_icon_dialog() {
-                                new_icon = path;
+                        if ui.button("Browse...").clicked()
+                            || dialog_binds.in_progress(DialogType::Icon)
+                        {
+                            dialog_binds.set_title("Select Icon Image");
+                            if let DialogStatus::Success(path) = dialog_binds
+                                .set_title("Select Icon Image")
+                                .spawn_and_poll(DialogType::Icon)
+                            {
+                                new_icon = path.to_string_lossy().to_string();
                                 settings_changed = true;
                             }
                         }
@@ -1571,17 +1584,4 @@ fn parse_color_rgb(color_str: &str) -> [f32; 3] {
         color.g() as f32 / 255.0,
         color.b() as f32 / 255.0,
     ]
-}
-
-/// Open a file dialog to select an icon image (native only)
-#[cfg(not(target_arch = "wasm32"))]
-fn open_icon_dialog() -> Option<String> {
-    use rfd::FileDialog;
-
-    FileDialog::new()
-        .add_filter("Image Files", &["png", "jpg", "jpeg", "bmp", "gif", "svg"])
-        .add_filter("All Files", &["*"])
-        .set_title("Select Icon Image")
-        .pick_file()
-        .map(|p| p.display().to_string())
 }

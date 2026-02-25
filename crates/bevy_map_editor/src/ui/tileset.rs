@@ -550,23 +550,3 @@ fn render_tileset_placeholder(
         }
     });
 }
-
-/// Open a file dialog to select a tileset image (native only)
-#[cfg(not(target_arch = "wasm32"))]
-#[allow(dead_code)]
-pub fn open_tileset_dialog() -> Option<String> {
-    use rfd::FileDialog;
-
-    FileDialog::new()
-        .add_filter("Image Files", &["png", "jpg", "jpeg", "bmp"])
-        .add_filter("All Files", &["*"])
-        .set_title("Select Tileset Image")
-        .pick_file()
-        .map(|p| p.to_string_lossy().to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-#[allow(dead_code)]
-pub fn open_tileset_dialog() -> Option<String> {
-    None
-}

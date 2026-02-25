@@ -355,15 +355,6 @@ fn render_spritesheet_settings(
     });
 }
 
-/// Open file dialog for selecting a spritesheet image
-#[cfg(not(target_arch = "wasm32"))]
-pub fn open_spritesheet_dialog() -> Option<String> {
-    rfd::FileDialog::new()
-        .add_filter("Images", &["png", "jpg", "jpeg", "webp", "gif", "bmp"])
-        .pick_file()
-        .map(|p| p.to_string_lossy().to_string())
-}
-
 /// Render the spritesheet grid preview (hover only, no click selection)
 fn render_spritesheet_grid_preview(ui: &mut egui::Ui, state: &mut SpriteSheetEditorState) {
     ui.heading("Grid Preview");
