@@ -30,10 +30,7 @@ impl IntegrationRegistry {
     }
 
     /// Return all properties that apply to the given entity type name.
-    pub fn properties_for_entity(
-        &self,
-        type_name: &str,
-    ) -> Vec<(&PluginInfo, &PropertyDef)> {
+    pub fn properties_for_entity(&self, type_name: &str) -> Vec<(&PluginInfo, &PropertyDef)> {
         let mut result = Vec::new();
         for meta in &self.plugins {
             let applies = meta.plugin.applies_to.is_empty()

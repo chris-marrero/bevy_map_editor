@@ -65,8 +65,7 @@ fn setup(mut commands: Commands) {
         .unwrap_or_else(|e| panic!("Failed to read {}: {e}", toml_path.display()));
 
     // --- Step 2: Parse into PluginMeta ---
-    let meta: PluginMeta =
-        toml::from_str(&toml_str).expect("Failed to parse aseprite_ultra.toml");
+    let meta: PluginMeta = toml::from_str(&toml_str).expect("Failed to parse aseprite_ultra.toml");
 
     info!(
         "Parsed plugin: {} v{} — \"{}\"",
@@ -210,10 +209,7 @@ fn demonstrate_component_bridge(registry: &IntegrationRegistry) {
             _ => format!("<unknown mapping for '{}'>", prop.name),
         };
 
-        info!(
-            "  {} = \"{}\"  →  {}",
-            prop.name, value, component_hint
-        );
+        info!("  {} = \"{}\"  →  {}", prop.name, value, component_hint);
     }
 
     info!("=== End of bridge simulation ===");

@@ -3,11 +3,22 @@ use crate::plugin_meta::ContributionDef;
 /// A runtime UI contribution for the editor.
 #[derive(Debug, Clone)]
 pub enum EditorExtension {
-    Panel { name: String },
-    MenuItem { path: String },
-    InspectorSection { name: String },
-    ToolbarButton { name: String },
-    ContextMenu { target: ContextMenuTarget, name: String },
+    Panel {
+        name: String,
+    },
+    MenuItem {
+        path: String,
+    },
+    InspectorSection {
+        name: String,
+    },
+    ToolbarButton {
+        name: String,
+    },
+    ContextMenu {
+        target: ContextMenuTarget,
+        name: String,
+    },
 }
 
 /// Target for a context menu contribution.

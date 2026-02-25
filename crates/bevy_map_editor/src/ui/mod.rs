@@ -624,7 +624,12 @@ fn render_ui(
             .default_width(ui_state.tree_view_width)
             .show(ctx, |ui| {
                 ui_state.tree_view_width = ui.available_width();
-                tree_view_result = render_tree_view(ui, &mut editor_state, &mut project, integration_registry.as_deref());
+                tree_view_result = render_tree_view(
+                    ui,
+                    &mut editor_state,
+                    &mut project,
+                    integration_registry.as_deref(),
+                );
             });
         ui_hover_state.over_tree_view = response.response.contains_pointer();
     }
@@ -651,8 +656,12 @@ fn render_ui(
                             .id_salt("inspector_scroll")
                             .auto_shrink([false, false])
                             .show(ui, |ui| {
-                                inspector_result =
-                                    render_inspector(ui, &mut editor_state, &mut project, integration_registry.as_deref());
+                                inspector_result = render_inspector(
+                                    ui,
+                                    &mut editor_state,
+                                    &mut project,
+                                    integration_registry.as_deref(),
+                                );
                             });
                     });
 

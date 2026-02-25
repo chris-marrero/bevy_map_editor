@@ -184,8 +184,7 @@ pub fn render_menu_bar(
                     if !panels.is_empty() {
                         ui.separator();
                         for name in &panels {
-                            let mut visible =
-                                ui_state.integration_panels.contains(name);
+                            let mut visible = ui_state.integration_panels.contains(name);
                             if ui.checkbox(&mut visible, name.as_str()).clicked() {
                                 if visible {
                                     ui_state.integration_panels.insert(name.clone());

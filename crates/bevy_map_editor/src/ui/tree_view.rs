@@ -700,7 +700,11 @@ fn render_tile_layer(
                     ui.close();
                 }
                 // Integration context menu items
-                render_integration_context_menu(ui, bevy_map_integration::editor::ContextMenuTarget::Layer, integration_registry);
+                render_integration_context_menu(
+                    ui,
+                    bevy_map_integration::editor::ContextMenuTarget::Layer,
+                    integration_registry,
+                );
             });
         }
     });

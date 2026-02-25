@@ -335,7 +335,13 @@ fn render_entity_inspector(
     if let Some(registry) = integration_registry {
         let plugin_props = registry.properties_for_entity(&type_name);
         if !plugin_props.is_empty() {
-            render_plugin_properties(ui, entity_id, &mut entity.properties, &plugin_props, registry);
+            render_plugin_properties(
+                ui,
+                entity_id,
+                &mut entity.properties,
+                &plugin_props,
+                registry,
+            );
         }
 
         // InspectorSection contributions from Rust companion crates
@@ -1539,15 +1545,23 @@ fn render_plugin_properties(
     ui: &mut egui::Ui,
     entity_id: Uuid,
     properties: &mut std::collections::HashMap<String, bevy_map_core::Value>,
-    plugin_props: &[(&bevy_map_integration::plugin_meta::PluginInfo, &bevy_map_integration::plugin_meta::PropertyDef)],
+    plugin_props: &[(
+        &bevy_map_integration::plugin_meta::PluginInfo,
+        &bevy_map_integration::plugin_meta::PropertyDef,
+    )],
     registry: &bevy_map_integration::registry::IntegrationRegistry,
 ) {
     use bevy_map_core::Value;
     use bevy_map_integration::plugin_meta::PropertyType;
 
     // Group properties by their plugin's inspector section (or plugin name)
-    let mut sections: std::collections::HashMap<String, Vec<(&bevy_map_integration::plugin_meta::PluginInfo, &bevy_map_integration::plugin_meta::PropertyDef)>> =
-        std::collections::HashMap::new();
+    let mut sections: std::collections::HashMap<
+        String,
+        Vec<(
+            &bevy_map_integration::plugin_meta::PluginInfo,
+            &bevy_map_integration::plugin_meta::PropertyDef,
+        )>,
+    > = std::collections::HashMap::new();
 
     for (info, prop) in plugin_props {
         let section = registry
@@ -1570,10 +1584,7 @@ fn render_plugin_properties(
                 for (info, prop_def) in props {
                     // Ensure property exists with default value
                     if !properties.contains_key(&prop_def.name) {
-                        properties.insert(
-                            prop_def.name.clone(),
-                            plugin_property_default(prop_def),
-                        );
+                        properties.insert(prop_def.name.clone(), plugin_property_default(prop_def));
                     }
 
                     let value = properties.get_mut(&prop_def.name).unwrap();
@@ -1640,7 +1651,8 @@ fn render_plugin_properties(
                                 if ui.button("Browse...").clicked() {
                                     let mut dialog = rfd::FileDialog::new();
                                     if let Some(exts) = &prop_def.extensions {
-                                        let ext_refs: Vec<&str> = exts.iter().map(|s| s.as_str()).collect();
+                                        let ext_refs: Vec<&str> =
+                                            exts.iter().map(|s| s.as_str()).collect();
                                         dialog = dialog.add_filter("Supported files", &ext_refs);
                                     }
                                     if let Some(path) = dialog.pick_file() {
@@ -1658,7 +1670,11 @@ fn render_plugin_properties(
                                     .selected_text(&selected)
                                     .show_ui(ui, |ui| {
                                         for variant in variants {
-                                            ui.selectable_value(&mut selected, variant.clone(), variant);
+                                            ui.selectable_value(
+                                                &mut selected,
+                                                variant.clone(),
+                                                variant,
+                                            );
                                         }
                                     });
                                 if selected != current {
@@ -1683,10 +1699,16 @@ fn render_plugin_properties(
                             };
                             let mut changed = false;
                             ui.horizontal(|ui| {
-                                if ui.add(egui::DragValue::new(&mut x).speed(1.0).prefix("X: ")).changed() {
+                                if ui
+                                    .add(egui::DragValue::new(&mut x).speed(1.0).prefix("X: "))
+                                    .changed()
+                                {
                                     changed = true;
                                 }
-                                if ui.add(egui::DragValue::new(&mut y).speed(1.0).prefix("Y: ")).changed() {
+                                if ui
+                                    .add(egui::DragValue::new(&mut y).speed(1.0).prefix("Y: "))
+                                    .changed()
+                                {
                                     changed = true;
                                 }
                             });
@@ -1718,7 +1740,9 @@ fn render_plugin_properties(
 }
 
 /// Get a default value for a plugin property.
-fn plugin_property_default(prop: &bevy_map_integration::plugin_meta::PropertyDef) -> bevy_map_core::Value {
+fn plugin_property_default(
+    prop: &bevy_map_integration::plugin_meta::PropertyDef,
+) -> bevy_map_core::Value {
     use bevy_map_core::Value;
     use bevy_map_integration::plugin_meta::PropertyType;
 
@@ -1728,7 +1752,9 @@ fn plugin_property_default(prop: &bevy_map_integration::plugin_meta::PropertyDef
     }
 
     match prop.prop_type {
-        PropertyType::String | PropertyType::FilePath | PropertyType::Enum => Value::String(String::new()),
+        PropertyType::String | PropertyType::FilePath | PropertyType::Enum => {
+            Value::String(String::new())
+        }
         PropertyType::Int => Value::Int(0),
         PropertyType::Float => Value::Float(0.0),
         PropertyType::Bool => Value::Bool(false),
@@ -1752,7 +1778,9 @@ fn toml_value_to_core_value(v: &toml::Value) -> bevy_map_core::Value {
         toml::Value::Boolean(b) => Value::Bool(*b),
         toml::Value::Array(arr) => Value::Array(arr.iter().map(toml_value_to_core_value).collect()),
         toml::Value::Table(t) => Value::Object(
-            t.iter().map(|(k, v)| (k.clone(), toml_value_to_core_value(v))).collect(),
+            t.iter()
+                .map(|(k, v)| (k.clone(), toml_value_to_core_value(v)))
+                .collect(),
         ),
         toml::Value::Datetime(d) => Value::String(d.to_string()),
     }

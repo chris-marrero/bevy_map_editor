@@ -287,8 +287,7 @@ impl AssetBrowserState {
                 || self.filter.show_audio
                 || self.filter.show_json
                 || !custom_exts.is_empty()
-                || (self.filter.show_integration
-                    && !self.filter.integration_extensions.is_empty());
+                || (self.filter.show_integration && !self.filter.integration_extensions.is_empty());
 
             (type_match || custom_match || integration_match || !has_any_filter) && search_match
         });

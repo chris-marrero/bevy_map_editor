@@ -86,8 +86,7 @@ impl PluginManager {
         {
             if let Ok(home) = std::env::var("HOME") {
                 return Some(
-                    PathBuf::from(home)
-                        .join("Library/Application Support/bevy_map_editor/plugins"),
+                    PathBuf::from(home).join("Library/Application Support/bevy_map_editor/plugins"),
                 );
             }
         }
