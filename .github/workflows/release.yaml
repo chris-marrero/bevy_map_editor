@@ -240,6 +240,9 @@ jobs:
       - name: Publish bevy_map_dialogue
         run: cargo publish -p bevy_map_dialogue --no-verify
 
+      - name: Publish bevy_map_integration
+        run: cargo publish -p bevy_map_integration --no-verify
+
       - name: Wait for crates.io index update
         run: sleep 30
 
