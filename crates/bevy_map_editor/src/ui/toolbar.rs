@@ -245,3 +245,130 @@ pub fn render_toolbar(
         });
     });
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::testing::{
+        assert_checkbox_state, assert_tool_active, editor_state_level_view,
+        editor_state_paint_tool, harness_for_toolbar, select_labeled, toggle_labeled,
+    };
+    use crate::ui::toolbar::EditorTool;
+
+    /// Clicking the "Grid" checkbox toggles show_grid from true to false.
+    ///
+    /// Uses `harness_for_toolbar` and `toggle_labeled` from `crate::testing`.
+    ///
+    /// Preconditions (confirmed via `editor_state_level_view` factory):
+    /// - `show_grid = true`
+    /// - `view_mode = Level` (tools enabled; `ui.disable()` does not fire)
+    #[test]
+    fn toolbar_grid_checkbox_toggle() {
+        let mut harness = harness_for_toolbar(editor_state_level_view());
+
+        // Precondition: show_grid starts true
+        assert!(
+            harness.state().show_grid,
+            "editor_state_level_view().show_grid must be true for this test to be meaningful"
+        );
+
+        harness.run();
+        toggle_labeled(&harness, "Grid");
+        harness.run();
+
+        assert!(
+            !harness.state().show_grid,
+            "show_grid should be false after toggling the Grid checkbox"
+        );
+    }
+
+    /// Clicking the "Paint" selectable label sets current_tool to EditorTool::Paint.
+    ///
+    /// Uses `harness_for_toolbar`, `select_labeled`, and `assert_tool_active` from `crate::testing`.
+    ///
+    /// Preconditions (confirmed via `editor_state_level_view` factory):
+    /// - `current_tool = Select` (default)
+    /// - `view_mode = Level` (tools enabled)
+    #[test]
+    fn toolbar_paint_tool_select() {
+        let mut harness = harness_for_toolbar(editor_state_level_view());
+
+        // Precondition: tool starts as Select
+        assert_eq!(
+            harness.state().current_tool,
+            EditorTool::Select,
+            "editor_state_level_view().current_tool must be Select for this test to be meaningful"
+        );
+
+        harness.run();
+        select_labeled(&harness, "Paint");
+        harness.run();
+
+        assert_tool_active(&harness, EditorTool::Paint);
+    }
+
+    /// `editor_state_paint_tool()` produces an EditorState with Paint as the active tool.
+    ///
+    /// Verifies that the factory function and `assert_tool_active` work together.
+    #[test]
+    fn factory_paint_tool_state() {
+        let harness = harness_for_toolbar(editor_state_paint_tool());
+
+        // No interaction needed — just verify the factory produced the right initial state.
+        assert_tool_active(&harness, EditorTool::Paint);
+    }
+
+    /// `assert_checkbox_state` reports the Grid checkbox as checked when show_grid is true.
+    ///
+    /// Tests the AccessKit tree assertion path without any interaction.
+    #[test]
+    fn assert_checkbox_state_grid_checked() {
+        let mut harness = harness_for_toolbar(editor_state_level_view());
+        harness.run();
+
+        // Grid starts checked
+        assert_checkbox_state(&harness, "Grid", true);
+
+        toggle_labeled(&harness, "Grid");
+        harness.run();
+
+        // Grid is now unchecked
+        assert_checkbox_state(&harness, "Grid", false);
+    }
+
+    /// Snapshot test: toolbar rendered with `EditorState::default()`.
+    ///
+    /// Captures a visual baseline of the toolbar in its default state (Select tool, Level view,
+    /// Grid checked, no mode widgets visible). Requires the `wgpu` feature on `egui_kittest`.
+    ///
+    /// To bless the baseline image on first run or after intentional visual changes:
+    ///   `UPDATE_SNAPSHOTS=1 cargo test -p bevy_map_editor toolbar_default_snapshot`
+    ///
+    /// The baseline PNG is stored at:
+    ///   `crates/bevy_map_editor/tests/snapshots/toolbar_default_snapshot.png`
+    #[test]
+    fn toolbar_default_snapshot() {
+        use crate::testing::editor_state_default;
+        let mut harness = harness_for_toolbar(editor_state_default());
+        harness.run();
+        harness.snapshot("toolbar_default_snapshot");
+    }
+
+    /// Snapshot test: toolbar rendered with `current_tool = EditorTool::Paint`.
+    ///
+    /// Captures a visual baseline of the toolbar when the Paint tool is active. In this state
+    /// the Mode combobox and Random/X/Y flip toggle buttons are visible. This exercises the
+    /// conditional widget section that only appears for tools that `supports_modes()`.
+    ///
+    /// To bless the baseline image on first run or after intentional visual changes:
+    ///   `UPDATE_SNAPSHOTS=1 cargo test -p bevy_map_editor toolbar_paint_tool_snapshot`
+    ///
+    /// The baseline PNG is stored at:
+    ///   `crates/bevy_map_editor/tests/snapshots/toolbar_paint_tool_snapshot.png`
+    #[test]
+    fn toolbar_paint_tool_snapshot() {
+        use crate::testing::editor_state_paint_tool;
+        let mut harness = harness_for_toolbar(editor_state_paint_tool());
+        harness.run();
+        harness.snapshot("toolbar_paint_tool_snapshot");
+    }
+}

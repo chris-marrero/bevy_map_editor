@@ -33,6 +33,9 @@ pub mod render;
 pub mod tools;
 pub mod ui;
 
+#[cfg(test)]
+mod testing;
+
 // Re-export core types from bevy_map_* crates
 pub use bevy_map_autotile;
 pub use bevy_map_core;

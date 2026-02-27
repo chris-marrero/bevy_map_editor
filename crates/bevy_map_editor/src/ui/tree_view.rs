@@ -104,7 +104,7 @@ pub fn render_tree_view(
 ) -> TreeViewResult {
     let mut result = TreeViewResult::default();
 
-    ui.heading("Project");
+    ui.heading("Tree View");
     ui.separator();
 
     egui::ScrollArea::vertical()

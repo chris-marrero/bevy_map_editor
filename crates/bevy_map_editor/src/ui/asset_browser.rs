@@ -325,6 +325,8 @@ pub fn render_asset_browser(
 ) -> AssetBrowserResult {
     let mut result = AssetBrowserResult::default();
 
+    ui.heading("Asset Browser");
+
     // Toolbar row
     ui.horizontal(|ui| {
         // Navigation buttons

@@ -45,5 +45,8 @@ runtime = ["bevy_map_runtime"]
 integrations = []
 wasm = []
 
+[dev-dependencies]
+egui_kittest = { version = "0.33", features = ["snapshot", "wgpu"] }
+
 [lints]
 workspace = true
