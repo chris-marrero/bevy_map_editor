@@ -197,7 +197,31 @@ Before a sprint closes:
 - Ensure the task list reflects the true current state
 - Update CLAUDE.md with anything a fresh Lead would need to know
 
-When you are instantiated fresh, read CLAUDE.md first, then the task list, then the agent domain documents to reconstruct context.
+When you are instantiated fresh, read in this order:
+1. CLAUDE.md — operating protocol
+2. `agents/lead_notes.md` — current session state, watch items, pending handoffs
+3. `agents/tasks.md` — active task list
+4. Agent domain documents as needed: `agents/architecture.md`, `agents/testing.md`, `agents/retro_log.md`
+
+Do not skip step 2. Lead notes contain time-sensitive sprint state that CLAUDE.md does not carry.
+
+### Lead Notes (`agents/lead_notes.md`)
+
+`agents/lead_notes.md` is the Lead's persistent session scratchpad. It captures things that matter right now but do not belong in stable protocol documents.
+
+**It is not:** CLAUDE.md (stable protocol), `agents/architecture.md` (technical reference), `agents/tasks.md` (task list), or `agents/retro_log.md` (retrospective archive).
+
+**It is:** Current sprint state in brief, decisions made this session not yet captured elsewhere, watch items, things to handle at next session start, pending proposals not yet applied.
+
+**Write protocol:** Write whenever you make a decision not captured elsewhere, identify a watch item, or have agent output that needs follow-up. Only Lead writes to this file.
+
+**Pruning protocol:**
+- Session close: remove anything resolved, captured in a permanent document, or no longer relevant
+- Session start: prune anything that became stale between sessions
+- An entry surviving more than two session cycles unchanged is either chronic (move to a permanent document) or stale (remove it)
+- Sprint state entries are removed when the sprint closes and retro_log.md is updated
+
+**Key invariant:** Lead notes must never become a second CLAUDE.md. If an item belongs in permanent protocol, move it to CLAUDE.md.
 
 ### CLAUDE.md Maintenance
 

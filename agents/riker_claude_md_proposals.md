@@ -114,3 +114,58 @@ Data is responsible for enforcing this — if parallel SEs are assigned overlapp
 **Picard's responsibility:** Include the worktree path or file-ownership scope in the task prompt for every SE assigned to a parallel sprint. Do not leave this to the SEs to negotiate.
 
 ---
+
+## Proposal 5 — Lead Notes System
+
+**Source:** User request (2026-02-27). Lead lacks a persistent scratchpad for session-critical context that does not belong in CLAUDE.md (stable protocol) or architecture.md (technical reference).
+
+**Target section in CLAUDE.md:** Add a `### Lead Notes` subsection under `## Lead Operating Procedures`, immediately after the `### CLAUDE.md Maintenance` subsection. Also update the startup instruction in CLAUDE.md's `### Agent Resets` section.
+
+---
+
+### Lead Notes (`agents/lead_notes.md`)
+
+`agents/lead_notes.md` is the Lead's persistent session scratchpad. It captures things that matter right now but do not belong in stable protocol documents.
+
+**It is not:**
+- CLAUDE.md — which is stable protocol and rarely changes
+- `agents/architecture.md` — which is technical reference, maintained by Data
+- `agents/tasks.md` — which is the active task list
+- `agents/retro_log.md` — which is the retrospective archive
+
+**It is:**
+- Current sprint state in brief (what is in flight, what is blocked, merge order constraints)
+- Decisions made this session that are not captured elsewhere and are not yet ready to be permanent
+- Things to handle at next session start
+- Watch items: potential problems, things to follow up on, pending proposals not yet applied
+- Protocol reminders that a fresh Lead is likely to forget under pressure
+
+**Read protocol:** Read `agents/lead_notes.md` immediately after CLAUDE.md at every session start, before reading any other agent document. It tells you where the sprint stands and what to do first.
+
+**Write protocol:**
+- Write to it whenever you make a decision not captured elsewhere
+- Write to it when you identify a watch item or a handoff concern
+- Write to it when an agent produces output that needs to be acted on but cannot be acted on immediately
+- Only the Lead writes to this file. Agents escalate through the task list; the Lead decides what belongs in lead_notes.md
+
+**Pruning protocol:**
+- At every session close: review each entry and remove anything that is resolved, captured in a permanent document, or no longer relevant
+- At session start: prune anything that became stale between sessions (e.g., a PR that merged, a watch item that resolved)
+- An entry that survives more than two session cycles without changing is either chronic (move it to a permanent document) or stale (remove it)
+- Sprint state entries are removed when the sprint is closed and retro_log.md is updated
+
+**Key invariant:** Lead notes must never become a second CLAUDE.md. If an item belongs in permanent protocol, move it to CLAUDE.md. If it belongs in technical reference, move it to architecture.md. Lead notes are temporary by design.
+
+---
+
+**Also update `### Agent Resets` section — change the startup sequence paragraph to:**
+
+When you are instantiated fresh, read in this order:
+1. CLAUDE.md — operating protocol
+2. `agents/lead_notes.md` — current session state, watch items, pending handoffs
+3. `agents/tasks.md` — active task list
+4. Agent domain documents as needed: `agents/architecture.md`, `agents/testing.md`, `agents/retro_log.md`
+
+Do not skip step 2. Lead notes contain time-sensitive sprint state that CLAUDE.md does not carry.
+
+---
