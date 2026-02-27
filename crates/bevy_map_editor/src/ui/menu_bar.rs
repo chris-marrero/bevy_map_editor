@@ -280,6 +280,12 @@ pub fn render_menu_bar(
                     editor_state.show_schema_editor = true;
                     ui.close();
                 }
+                ui.separator();
+                // Automapping
+                if ui.button("Automap Rule Editor...").clicked() {
+                    editor_state.show_automap_editor = true;
+                    ui.close();
+                }
             });
 
             // Integrations menu (from EditorExtension::MenuItem contributions)

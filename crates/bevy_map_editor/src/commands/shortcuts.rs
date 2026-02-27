@@ -34,8 +34,12 @@ pub fn handle_keyboard_shortcuts(
         if keyboard.just_pressed(KeyCode::KeyV) {
             editor_state.pending_action = Some(PendingAction::Paste);
         }
-        // Ctrl+A - Select All
-        if keyboard.just_pressed(KeyCode::KeyA) {
+        // Ctrl+Shift+A - Toggle Automap Rule Editor
+        if keyboard.just_pressed(KeyCode::KeyA) && shift {
+            editor_state.show_automap_editor = !editor_state.show_automap_editor;
+        }
+        // Ctrl+A - Select All (only without shift)
+        if keyboard.just_pressed(KeyCode::KeyA) && !shift {
             editor_state.pending_action = Some(PendingAction::SelectAll);
         }
         // Ctrl+Shift+S - Create Stamp from Selection
