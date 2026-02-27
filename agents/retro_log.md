@@ -4,6 +4,44 @@ Maintained by the Lead. Each entry captures process findings from a completed sp
 
 ---
 
+## 2026-02-27 — Sprint: Automapping (IN PROGRESS)
+
+### What Was Completed This Session
+
+**Engine crate (Geordi — PR #1):** `bevy_map_automap` crate implemented. Core types (`AutomapRule`, `AutomapConfig`, `OutputGroup`, etc.), pattern matching with flip-bit support, apply logic, probability/priority system. PR open, awaiting Data review.
+
+**Integration layer (Barclay — PR #3):** Editor wiring implemented. `Layer::id` added to `bevy_map_core`, `automap_config` field added to `Project`, `AutomapCommand` implemented and plumbed into `CommandHistory`, `preferences` field added, layer-delete hook, dialogs updated. `cargo check -p bevy_map_editor` passes on this branch. PR open, awaiting Data review.
+
+**UI skeleton (Wesley — PR #2):** `automap_editor.rs` implemented per Troi's spec. Rule list, condition grid, output grid, apply mode selector, run button. PR open — depends on Barclay's PR #3 merging first (Wesley's branch references `show_automap_editor` and `automap_editor_state` fields that Barclay's branch adds to `EditorState`).
+
+### What Is NOT Done
+
+- **Data review of PRs #1, #2, #3** — none reviewed yet; no GO given; nothing merged
+- **Worf T-05 tests** — blocked on Data review + merge of at least PRs #1 and #3
+- **`RunAutomapRules` full wiring** — `handle_run_automap_rules` stub present; calls `apply_automap_config` but the full Bevy command dispatch and undo/redo integration is not complete; stub recorded in DEBT table
+- **Layer mapping persistence in the editor** — rules can reference layer IDs in the UI, but the project serialization for these associations is not implemented; not yet in DEBT table
+- **`find_layer_index` stub** — permanent `None` return in `apply.rs`; recorded in DEBT table; fix gated on `Layer::id` landing in `bevy_map_core`
+
+### Coordination Issues
+
+**Cross-branch contamination:** Agents shared a single working directory. Wesley's changes landed on Barclay's branch during mid-sprint parallel work. This was not caught until commit review. Picard manually reorganized commits to restore correct branch boundaries. Root cause: no file-ownership protocol or worktree isolation between simultaneous SE instances.
+
+**Resolution at time:** Picard manually untangled the commits. No code was lost. Both branches now have correct commit histories and open PRs.
+
+**Protocol gap:** CLAUDE.md has no guidance on how parallel SE agents coordinate when sharing a working directory. Riker is proposing an addition to CLAUDE.md (see `agents/riker_claude_md_proposals.md`).
+
+### New Violation Logged
+
+**V-006 — Debt collection is passive:** Multiple stubs were introduced during T-04 and T-08 without corresponding DEBT table entries. The DEBT table was only updated after a user prompt to Data. This is a systemic gap — agents have no protocol obligation to log debt at introduction time. Riker addressed this in agent prompts this session.
+
+### System Design Questions
+
+- Should SE agents working in parallel be required to use `git worktree` to eliminate the shared-directory risk entirely, or is a file-ownership protocol (each SE declares files they will touch before starting) sufficient?
+- Should the DEBT table have a "logged by / logged at" column so it is clear when each item was introduced and whether it was caught promptly or retroactively?
+- Should Data's code review checklist be explicitly written into `agents/architecture.md` as a named, repeatable procedure, rather than residing only in the sr-software-engineer prompt?
+
+---
+
 ## 2026-02-27 — Collision Editor Sprint (CLOSED)
 
 ### Protocol Update: Git PR workflow added
