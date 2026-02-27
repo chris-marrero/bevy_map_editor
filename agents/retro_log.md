@@ -6,6 +6,27 @@ Maintained by the Lead. Each entry captures process findings from a completed sp
 
 ## 2026-02-27 — Collision Editor Sprint (CLOSED)
 
+### Retrospective
+
+**What shipped vs. what was planned:** Both planned items shipped — drag bug fix and numeric input panel. No scope delta. 34 tests passing (+14).
+
+**Escalations that went to Lead — were they appropriate?**
+Three items reached the user: (1) the review gate violation (appropriate — user needed to know a process failure occurred), (2) the retro log omission (appropriate — user caught it, should have been self-caught), (3) the launch sequence question (appropriate — protocol redesign requires user decision). All three were appropriate escalations. The second should not have required the user to prompt it.
+
+**Late-discovered conformance failures — when were they caught and why not earlier?**
+Troi's Advisory A (trailing whitespace on labels) was caught at conformance review, not during SE implementation. Barclay noted the padding as a judgment call in his own report but did not flag it as a label-string concern. The conformance review caught it at the right stage — this is the review gate working as intended. It would have been caught even later (by Worf) if the review gate had not been in place.
+
+**Repeated test failures — patterns indicating structural testability problems?**
+The canvas drag path (`handle_collision_canvas_input`) is untestable with the current rig — no AccessKit node on unlabeled painter regions. This is the second sprint where a drag-related interaction had no test coverage. Pattern: any interaction logic that lives on a raw allocated canvas region is structurally untestable without architecture changes. This is a known gap recorded in architecture.md.
+
+**Context loss events:**
+None. All agents operated with full context of their assigned region.
+
+**System design question — process:**
+Three violations in one sprint (skipped review gate, direct file edit, delayed retro). All three have the same root: Picard acting as an implementer rather than a coordinator. The new protocol (all agents simultaneous, Picard never touches files) directly addresses this. Whether the new protocol holds under pressure is the question for the next sprint.
+
+---
+
 ### Advisory: "Rect" button label vs. CollisionDrawMode::Rectangle enum name
 
 **Observed by Worf:** The Rectangle mode toolbar button renders as `"Rect"` (line 2021 in `tileset_editor.rs`) while the enum variant is `CollisionDrawMode::Rectangle`. This inconsistency is pre-existing and outside sprint scope. Routed to Troi for evaluation in a future UX polish sprint. No test failures were caused — Worf caught it during test writing before asserting the wrong label.
