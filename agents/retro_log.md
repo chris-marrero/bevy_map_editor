@@ -6,6 +6,12 @@ Maintained by the Lead. Each entry captures process findings from a completed sp
 
 ## 2026-02-27 — Collision Editor Sprint (CLOSED)
 
+### Protocol Update: Git PR workflow added
+
+**What changed:** SEs now work on feature branches and submit PRs. Data reviews and merges. SEs rebase on conflict. Picard assigns branch names at sprint start. CLAUDE.md updated.
+
+---
+
 ### Retrospective
 
 **What shipped vs. what was planned:** Both planned items shipped — drag bug fix and numeric input panel. No scope delta. 34 tests passing (+14).

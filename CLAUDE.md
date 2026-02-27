@@ -70,6 +70,29 @@ Stored in `.claude/agents/`:
 5. Kill and respawn agents silently when they are stuck or context is too cloudy.
 6. **Never edit production files directly.** Every code change, no matter how small, must be a task assigned to an agent. Picard is not a code author.
 
+### Git Workflow
+
+Each SE works on a dedicated feature branch and submits a PR when their implementation is ready for review.
+
+**SE responsibilities:**
+- Branch naming: `sprint/<short-sprint-name>/<persona>-<task>` (e.g., `sprint/collision-editor/wesley-drag-fix`)
+- Picard includes the branch name in the SE's task prompt
+- SE pushes branch and creates a PR via `gh pr create` when implementation is complete
+- If the branch has conflicts after another SE's PR merges, the SE rebases on the updated base before Data can review
+
+**Data responsibilities:**
+- Reviews the PR (code correctness, architecture conformance)
+- Merges directly via `gh pr merge` after giving GO
+- Does not merge until Troi has also reviewed any UX-adjacent changes
+
+**Picard responsibilities:**
+- Assign branch names at sprint start and include them in SE task prompts
+- Do not merge PRs — that is Data's authority
+
+**Conflict resolution order:** Data merges PRs in the order they are ready. An SE whose PR conflicts after a merge rebases and notifies Data via task update.
+
+---
+
 ### Sprint Launch Protocol
 
 **Spawn all agents at the start of the sprint, simultaneously.** Each agent reads sprint context, proposes tasks they can do given what they currently know, and self-assigns from the task list as tasks become unblocked. Picard monitors task flow, resolves blockers, and ensures no agent is idle without cause.
