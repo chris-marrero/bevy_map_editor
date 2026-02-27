@@ -460,22 +460,29 @@ mod testing;
 | ~~No test infrastructure~~ | ~~RESOLVED. 20 tests passing: toolbar, panel visibility (8), helpers (various). `assert_panel_visible` / `assert_panel_not_visible` implemented and verified.~~ | — |
 | `process_edit_actions` is not tested | The central dispatch function has no coverage; silent breakage of undo/redo/save is possible | When the undo/redo or save path has a regression |
 | Texture cache loading coupled to Bevy Asset system | Cannot unit-test texture loading logic without a running Bevy app | If a texture loading bug is introduced that integration testing would catch |
+| `CollisionDragOperation` wildcard arm in `drag_stopped()` silently discards `MoveShape`, `ResizeRect`, `ResizeCircle` | If any code path ever initializes one of these operations, the drag commits nothing and produces no error; the compiler's exhaustiveness guarantee is suppressed by `_ => {}` | When `MoveShape` / `ResizeRect` / `ResizeCircle` operations are implemented |
+| `0.01` drag-commit threshold is a magic constant in `drag_stopped()` | Minor readability issue; not a behavioral problem | If threshold ever needs tuning — extract to a named const |
+| `format!("{:?}", one_way)` in CollisionProperties ComboBox exposes Rust debug format | Cosmetic only — user sees `Top` instead of "Top (Pass from below)"; consistent with existing style but not ideal | When the properties panel gets a UX polish pass |
 
 ---
 
 ## Session Status
 
-**Last updated:** 2026-02-26
+**Last updated:** 2026-02-27
 
 **Cumulative completed:**
 - Phase 1 UI testing rig: `egui_kittest` dev-dep added, `toolbar_grid_checkbox_toggle` test passing
 - Test helper module (`src/testing.rs`) fully implemented and signed off by Worf
 - Phase 3 snapshot tests: `wgpu` feature added to `egui_kittest` dev-dep; two snapshot tests written and blessed
 - `assert_panel_visible` / `assert_panel_not_visible` implemented; 8 panel visibility tests added
-- **20 tests passing, 0 failures**
+- Collision editor drag bug fixed (Wesley): Rectangle/Circle drag initialization moved from `clicked()` to `drag_started()`
+- Collision editor numeric input panel added (Barclay): DragValue fields for all CollisionShape variants in `render_collision_properties`
+- **34 tests passing, 0 failures** (+14 this sprint: 10 label-presence tests for numeric panel, 4 smoke tests per draw mode)
 - Agent team: Star Trek TNG personas; SE personas in individual `.claude/agents/` files
 - `agents/permissions.md` created
-- **Sprint protocol updated:** Picard spawns all agents including SE personas; Data advises on persona selection only
+- **Sprint protocol updated:** All agents spawn simultaneously; self-assign tasks; Data reviews code before Worf; Troi reviews UX output from Data; Picard never edits production files
+
+**Drag canvas testability note:** `handle_collision_canvas_input` canvas drag behavior cannot be tested with the current `egui_kittest` rig — the canvas is an unlabeled painter region with no AccessKit node. Testing drag-to-draw requires either an accessible wrapper on the canvas response or extraction of drag state logic into a pure function. This is a Data-level architecture decision for a future sprint.
 
 **Phase 3 snapshot test inventory:**
 
@@ -545,3 +552,313 @@ production code to avoid id collisions if tests ever run multiple panels in one 
 
 **Blocked / deferred:**
 - `process_edit_actions` has no test coverage (see DEBT table)
+
+---
+
+## Collision Editor Sprint — Architecture Notes
+
+**Author:** Lt. Cmdr. Data
+**Date:** 2026-02-26
+**Status:** Assessment complete. Ready for SE assignment.
+
+---
+
+### Source locations
+
+All collision editor code lives in one file:
+`crates/bevy_map_editor/src/ui/tileset_editor.rs`
+
+| Concern | Lines |
+|---|---|
+| State structs (`CollisionEditorState`, `CollisionDrawMode`, `CollisionDragOperation`, `CollisionDragState`) | 480–559 |
+| `render_collision_tab` (three-panel layout, tools panel, canvas panel) | 1930–2103 |
+| `render_collision_tile_selector` | 2105–2231 |
+| `render_collision_canvas` (allocation, texture draw, shape draw, step sequencing) | 2233–2368 |
+| `handle_collision_canvas_input` (double-click, click, drag_started, dragged, drag_stopped, context menu) | 2472–2942 |
+| `render_collision_properties` (properties panel; shape name, one-way, layer, mask, action buttons) | 2945–3054 |
+| Coordinate helpers | 3056–3139 |
+
+Core collision types live in:
+`crates/bevy_map_core/src/collision.rs`
+
+`CollisionShape` is an enum: `None`, `Full`, `Rectangle { offset: [f32;2], size: [f32;2] }`, `Circle { offset: [f32;2], radius: f32 }`, `Polygon { points: Vec<[f32;2]> }`. All coordinates are 0.0–1.0 normalized. There is no maximum polygon point count imposed by the type — `Vec<[f32;2]>` is unbounded.
+
+The mutation API on `Tileset` (in `crates/bevy_map_core/src/tileset.rs`):
+- `set_tile_collision_shape(tile_index: u32, shape: CollisionShape)` — overwrites shape, preserves other `CollisionData` fields (body type, one-way, layer, mask). This is the correct write path. After calling it, `project.mark_dirty()` must be called.
+
+---
+
+### Bug 1: Drag doesn't add shape — Root Cause Confirmed
+
+**Verdict: the root cause is exactly as described in the sprint brief.** The analysis is complete.
+
+**In egui, `Response::clicked()` fires only when the mouse button is pressed AND released with no appreciable movement.** When the user drags, egui's internal threshold for "is this a drag?" is crossed before release. On the frame the drag threshold is crossed, `drag_started()` becomes true and `clicked()` becomes permanently false for that gesture. There is no frame on which both `clicked()` and `drag_started()` are true for the same drag gesture.
+
+**The defective code is at lines 2552–2562 (Rectangle) and 2563–2572 (Circle), inside the `if response.clicked()` block:**
+
+```rust
+// Line 2539 — this block is NEVER entered during a drag gesture
+if response.clicked() {
+    ...
+    match drawing_mode {
+        CollisionDrawMode::Rectangle => {
+            // drag_state initialized here — but clicked() is false on a drag
+            editor_state...collision_editor.drag_state = Some(CollisionDragState {
+                operation: CollisionDragOperation::NewRectangle,
+                start_pos: normalized,
+                current_pos: normalized,
+            });
+        }
+        CollisionDrawMode::Circle => {
+            // same problem
+            editor_state...collision_editor.drag_state = Some(CollisionDragState {
+                operation: CollisionDragOperation::NewCircle { center: normalized },
+                ...
+            });
+        }
+        ...
+    }
+}
+```
+
+When the user performs a drag gesture:
+1. Frame N: pointer down — no event fires yet (threshold not crossed).
+2. Frame N+k: pointer moves past drag threshold — `drag_started()` = true, `clicked()` = false. `drag_state` is never set for Rectangle/Circle because the `if response.clicked()` block is skipped.
+3. Frames N+k..M: `response.dragged()` = true. The `if let Some(ref mut drag_state)` block at line 2619 finds `drag_state = None`. Nothing updates.
+4. Frame M: pointer released — `drag_stopped()` = true. `drag_state.take()` returns `None`. No shape is committed.
+
+**The fix requires moving Rectangle and Circle drag initialization from `if response.clicked()` to `if response.drag_started()`.**
+
+The `drag_started()` block currently exists at line 2583, but it is guarded by `drawing_mode == CollisionDrawMode::Select`. The fix is:
+- Remove the `Select`-only guard on the existing `drag_started()` block, OR
+- Add a parallel `drag_started()` branch for `Rectangle` and `Circle` modes.
+
+**Secondary question: can `double_clicked()` and `drag_started()` conflict?**
+
+The double-click handlers are at lines 2488 and 2512, both gated on `drawing_mode == CollisionDrawMode::Polygon` or `Select`. Rectangle and Circle modes have no double-click handler. There is no conflict.
+
+**Secondary question: can `clicked()` and `drag_started()` fire on the same frame?**
+
+No. In egui's pointer state model, a gesture is classified as either a click or a drag, not both. Once `drag_started()` is true for a gesture, `clicked()` will never be true for that same gesture. However, a clean click (press and release without movement) will fire `clicked()` on the release frame and will never fire `drag_started()`. This means the two branches are mutually exclusive per gesture.
+
+**Consequence for the fix:** After the fix, `clicked()` will still fire for Rectangle/Circle on a clean tap (no movement), initializing `drag_state`. Then `drag_stopped()` fires immediately on the same frame (since pointer was released). `drag_stopped()` at line 2630 calls `drag_state.take()` and checks for minimum size (`width > 0.01 && height > 0.01`). Because start_pos == current_pos on a clean tap, `width = 0` and `height = 0`. The shape will correctly not be committed. This is the correct zero-size guard behavior and it remains correct after the fix. No additional guard is needed for the click-no-drag case.
+
+**Edge case: what if the user releases mid-drag before threshold?** Same as clean click — egui treats sub-threshold movement as a click, not a drag. `clicked()` fires, `drag_state` is initialized, then `drag_stopped()` immediately fires and the zero-size guard prevents spurious shape creation. Correct.
+
+**Exact lines that need to change:**
+
+The `drag_started()` handler at line 2583 must be expanded to cover Rectangle and Circle. The existing `Select`-mode vertex-drag logic stays; Rectangle and Circle cases are added. The `clicked()` block at lines 2552–2572 can be left in place — it handles the clean-tap case that initializes a zero-size drag which is immediately discarded. Both branches producing `drag_state` for the same mode is safe because `drag_started()` and `clicked()` are mutually exclusive per gesture.
+
+---
+
+### Feature: Numeric Input Panel — Assessment
+
+#### 1. Placement
+
+`render_collision_properties` is already called at line 2076 from the right tools panel, after the draw-mode buttons and instructions. It renders: shape name label, separator, one-way combobox, layer DragValue, mask DragValue, separator, "Set Full Collision" and "Clear Collision" buttons.
+
+The numeric input fields for shape coordinates belong in `render_collision_properties`, appended after the existing content. There is no separate section needed. The right panel has a default width of 180px and is resizable. The existing content already includes DragValue widgets, which are compact. Adding up to 5 DragValue fields (x, y, w, h for Rectangle; x, y, r for Circle) will not cause scroll issues at default width — DragValues stack vertically at ~20px each, the total panel height for the densest case (Rectangle: 4 fields) is well under 400px.
+
+**Decision: numeric input is an extension of `render_collision_properties`, not a new panel or section. Do not add a new heading or panel.**
+
+#### 2. Does `render_collision_properties` conflict with numeric input?
+
+No conflict. It already reads `collision_data` by cloning from the tileset (`t.get_tile_properties(tile_idx).map(|p| p.collision.clone())`). The numeric input fields follow the same pattern: read current values from the clone, detect change, write back via `tileset.set_tile_collision_shape(tile_idx, updated_shape)` + `project.mark_dirty()`. The existing function structure handles this cleanly — extend it in-place.
+
+One note: the current code uses `format!("{:?}", one_way)` for the ComboBox selected text (line 2982) which exposes the Rust debug format. This is an existing cosmetic issue; it is not in scope and must not be fixed in this sprint.
+
+#### 3. Live update path: is `tileset.set_tile_collision_shape` + `project.mark_dirty()` sufficient?
+
+Yes. `render_collision_canvas` reads collision data from `project.tilesets` on every frame (line 2328–2332). It does not cache shape values in `CollisionEditorState`. Therefore any write to `tileset.set_tile_collision_shape` takes effect on the next frame's render. No additional state invalidation is needed.
+
+**Confirmed write path:**
+```rust
+if let Some(tileset) = project.tilesets.iter_mut().find(|t| t.id == tileset_id) {
+    tileset.set_tile_collision_shape(tile_idx, updated_shape);
+    project.mark_dirty();
+}
+```
+This is the exact same pattern already used at lines 2663, 2678, 3043, 3051.
+
+#### 4. Polygon point list: maximum practical count and type limits
+
+`CollisionShape::Polygon { points: Vec<[f32;2]> }` imposes no upper bound. The type is a `Vec` with no capacity limit.
+
+Practical consideration: the UI should list polygon points as a scrollable list within `render_collision_properties`. With `egui::ScrollArea`, any count is renderable. However:
+- The existing polygon point management operations (add via click, delete via context menu) are already bounded by UX — a polygon with hundreds of points is impractical to draw by hand.
+- The numeric input for polygon points is a list of (x, y) DragValue pairs per vertex, within a `ScrollArea`. No cap is needed at the data model level.
+- The SE should wrap the polygon point list in a `ScrollArea` with a reasonable max height (e.g., 200px) to prevent the panel from growing unbounded.
+
+**No limit needs to be imposed at the type level. The SE should use a bounded `ScrollArea` for the polygon point list in the numeric panel.**
+
+#### 5. New state fields in `CollisionEditorState`?
+
+No new fields are required. The project data (`CollisionShape`) is the single source of truth. The DragValue widgets in `render_collision_properties` read from a cloned `CollisionData` each frame and write back on change. This is the same stateless immediate-mode pattern already used for layer and mask. There is no need for intermediate editing state.
+
+**The only scenario that would require new state is a two-phase "confirm/cancel" edit flow** (e.g., the user types into a field and presses Enter to confirm). The requirement as stated is "type exact values" — immediate live update is sufficient and simpler. No confirm/cancel flow is needed unless Troi specifies it.
+
+---
+
+### SE Persona Recommendation
+
+**Bug fix: Wesley Crusher.**
+
+The bug fix is fully specified. The cause is confirmed, the exact lines are identified, the fix is a well-bounded change to `handle_collision_canvas_input` (add Rectangle and Circle cases to the `drag_started()` block, around lines 2583–2612). The edge cases have been enumerated and the zero-size guard handles them correctly without modification. This is a clean, pattern-adherent change with no ambiguity. Wesley is the right persona: defined scope, no creative problem-solving required, fast clean output.
+
+**Numeric input: Barclay.**
+
+The numeric input extension to `render_collision_properties` touches all four `CollisionShape` variants (None and Full have no editable coordinates, Rectangle has 4 fields, Circle has 3 fields, Polygon has a variable-length list). The polygon case in particular requires: a `ScrollArea`, per-vertex DragValue pairs, correct index tracking for writes, and bounds-safe vector mutation. The `CollisionShape` enum arms must be matched exhaustively. Barclay's thoroughness and edge-case focus are appropriate here. The feature is well-specified but the polygon case has enough surface area for subtle bugs (off-by-one on index, unbounded panel growth, incorrect clamping) that Wesley's speed-over-caution approach would be risky.
+
+**Both can work in parallel.** The bug fix is in `handle_collision_canvas_input`. The numeric input is in `render_collision_properties`. These are separate functions with no shared mutable state. File conflict risk: both are in `tileset_editor.rs`. They must not touch overlapping lines. The bug fix modifies lines approximately 2583–2612. The numeric input modifies lines approximately 2973–3054 (end of `render_collision_properties`). No overlap. Parallel execution is safe.
+
+---
+
+## Collision Editor Sprint — Code Review
+
+**Reviewed by: Lt. Cmdr. Data**
+**Files reviewed:** `crates/bevy_map_editor/src/ui/tileset_editor.rs` (lines 2472–2706, 2950–3189)
+**Verdict: GO for Worf — with three advisory findings recorded below.**
+
+---
+
+### Change 1: Wesley's drag bug fix (`handle_collision_canvas_input`)
+
+#### Summary of change
+
+Rectangle and Circle drag-state initialization was moved from `response.clicked()` to `response.drag_started()`. The Polygon `clicked()` arm remains in the `clicked()` block untouched. The Select mode vertex drag init was moved inside the `drag_started()` match arm.
+
+#### Finding 1.1 — egui event model: `clicked()` and `drag_started()` mutual exclusivity (CONFIRMED CORRECT)
+
+In egui, a `Response` is backed by a single interaction per widget per frame. `clicked()` returns `true` only when a pointer button is pressed and released within the widget without any drag motion being detected. `drag_started()` returns `true` on the first frame the pointer is classified as dragging (which requires exceeding the drag threshold). These two states are mutually exclusive by design in egui's `Response` implementation: a pointer sequence is either a click or a drag, not both. The original bug — initializing drag state inside `clicked()` — meant the drag state was never set on the first drag frame, because `clicked()` requires release, which had not happened. Moving initialization to `drag_started()` is the correct fix.
+
+**Finding: Correct. No issue.**
+
+#### Finding 1.2 — Polygon `clicked()` arm unaffected (CONFIRMED CORRECT)
+
+The Polygon arm remains at lines 2543–2549 inside the `if response.clicked()` block. This is correct: polygon point accumulation is click-based, not drag-based. The change did not touch this arm. The `CollisionDrawMode::Polygon` branch inside the `drag_started()` match at line 2604 is an explicit empty arm (`CollisionDrawMode::Polygon => {}`), which is correct — polygon drawing does not use drag state.
+
+**Finding: Correct. No issue.**
+
+#### Finding 1.3 — Select mode vertex drag init after relocation (CONFIRMED CORRECT)
+
+The Select mode vertex drag initialization is now inside the `drag_started()` match at lines 2579–2603. It reads the polygon vertex list from `project.tilesets` (immutable borrow), performs the hit test, and if a vertex is found, writes `drag_state` to `editor_state`. The borrow is released before the write. No overlap with the mutable path. The vertex index and `original` position are captured correctly at drag start and stored in `CollisionDragOperation::MoveVertex { index, original }`.
+
+**Finding: Correct. No issue.**
+
+#### Finding 1.4 — Zero-size shape guards in `drag_stopped()` still sufficient (CONFIRMED CORRECT)
+
+Rectangle: `if width > 0.01 && height > 0.01` (line 2650). Circle: `if radius > 0.01` (line 2668). These guards correctly discard the "clean tap" edge case — where the user pressed and released without moving enough to produce a measurable shape. The `drag_started()` change does not affect these guards; they operate on final values computed at release, not on the initialization path.
+
+Advisory: the 0.01 threshold is a magic constant with no named binding. This is pre-existing and is not introduced by Wesley's change. Out of scope for this sprint.
+
+**Finding: Sufficient. Advisory only — magic constant.**
+
+#### Finding 1.5 — Wildcard arm in `drag_stopped()` silently discards `MoveShape` and `ResizeRect`/`ResizeCircle` (ADVISORY)
+
+The `drag_stopped()` match at line 2632 handles `NewRectangle`, `NewCircle`, and `MoveVertex` explicitly. The wildcard `_ => {}` at line 2703 silently discards `MoveShape`, `ResizeRect`, and `ResizeCircle`. These three variants exist in the `CollisionDragOperation` enum (lines 507–514) but have no initialization code in `drag_started()` and no commit code in `drag_stopped()`. This is pre-existing — not introduced by Wesley's change. However, it means if any future code path sets one of those operations, the drag will produce no visible result and no error. The wildcard suppresses the compiler's exhaustiveness guarantee.
+
+This is a pre-existing debt item, not a regression. Wesley's change did not introduce it. Recording it here for Worf's awareness: test coverage cannot verify `MoveShape`/`ResizeRect`/`ResizeCircle` commit paths because none exist. Worf should not write tests for these — they are unimplemented operations, not bugs.
+
+**Finding: Advisory. Pre-existing. No action required this sprint.**
+
+#### Change 1 Verdict: SHIP
+
+---
+
+### Change 2: Barclay's numeric input panel (`render_collision_properties`)
+
+#### Summary of change
+
+A `match &collision_data.shape` block inserted after the shape name label. Five arms: `Rectangle` (4 DragValues, dynamic max), `Circle` (3 DragValues, radius unclamped), `Polygon` (ScrollArea with per-vertex rows, delete guard, add point, deferred mutation), `Full` (label only), `None` (label only). Write-back uses `set_tile_collision_shape` + `mark_dirty` behind `any_changed` flags.
+
+#### Finding 2.1 — Borrow checker: clone-mutate-compare pattern (CORRECT)
+
+`collision_data` is cloned from the tileset at lines 2963–2966 before the `match`. The match borrows `&collision_data.shape` (shared reference into the clone). Local `mut` copies are made from the matched fields (`let mut offset = *orig_offset`, etc.). DragValues reference the local copies. The mutable borrow of `project.tilesets` for write-back occurs only inside `if any_changed`, which is after all DragValue calls complete. No shared reference is held across the mutable borrow. The egui closure pattern (`ui.horizontal(|ui| { ... })`) takes a closure but `offset` and `size` are captured by exclusive mutable reference within the closure; egui processes the closure immediately and returns before the next statement. There is no async or deferred execution.
+
+**Finding: Correct. No borrow checker issue.**
+
+#### Finding 2.2 — Exhaustive variant coverage (CORRECT)
+
+`CollisionShape` has five variants: `None`, `Full`, `Rectangle`, `Circle`, `Polygon`. All five are explicitly matched at lines 2977, 3044, 3092, 3180, 3185. No wildcard arm. The compiler will enforce exhaustiveness if a new variant is ever added to `CollisionShape`, which is the correct behavior.
+
+**Finding: Correct. Full coverage.**
+
+#### Finding 2.3 — Rectangle dynamic width/height max computation (CORRECT WITH ADVISORY)
+
+`max_width = (1.0 - offset[0]).max(0.0)` and `max_height = (1.0 - offset[1]).max(0.0)` are computed after the offset DragValues are rendered (lines 3007–3008). The comment at line 2989 acknowledges this ordering explicitly: offset fields rendered first so the max reflects any edit made this frame. This is correct. If the user drags offset X to 0.8 on this frame, `max_width` becomes 0.2, and width is clamped to 0.2 before the width DragValue is rendered.
+
+`size[0] = size[0].min(max_width)` and `size[1] = size[1].min(max_height)` (lines 3009–3010) apply the clamp to the local copy before rendering. This means if offset is dragged rightward past the current width, the width is silently reduced to fit. The user receives no explicit warning that their width value was altered. This is a UX observation, not a correctness bug — the resulting shape is always geometrically valid (right edge never exceeds 1.0), and the DragValue widget will reflect the clamped value on the next frame.
+
+Advisory: there is a one-frame latency on the clamp. On the frame the offset is pushed far right, the `any_changed` flag will be `true` (from the offset edit), the write-back will fire, and the clamped size will be persisted. The displayed width DragValue will show the clamped value. The behavior is consistent and visible to the user. Acceptable.
+
+**Finding: Correct. Advisory on silent clamp.**
+
+#### Finding 2.4 — Circle radius range: `0.0..=f32::MAX` (CORRECT, DELIBERATE)
+
+Radius is not clamped to 1.0 (lines 3074–3078). The comment at line 3068–3069 references this as Data's assessed item. `CollisionShape::Circle` allows radius to extend past the tile boundary — this is a valid physics configuration (e.g., a circular bumper that overlaps adjacent tiles). The lower bound of 0.0 prevents a negative radius. `f32::MAX` as upper bound is acceptable; no practical collision radius will approach it, and DragValue with speed 0.005 will not reach it by accident.
+
+**Finding: Correct and deliberate.**
+
+#### Finding 2.5 — Polygon scroll area and iteration (CORRECT)
+
+The scroll area uses `id_salt("collision_polygon_points")` (line 3108), which is required when multiple scroll areas exist in the same panel. The iteration is `for i in 0..points.len()` over the cloned vector. Delete and add are deferred via `delete_idx: Option<usize>` and `add_point: bool` flags set inside the loop, applied after the scroll area closes. This is the correct pattern for deferred mutation.
+
+**Finding: Correct.**
+
+#### Finding 2.6 — Delete guard: `points.len() > 3` (CORRECT)
+
+The button is disabled (`add_enabled`) when `points.len() <= 3` (line 3133). A second guard at line 3155 checks the same condition before the actual `remove()`. The second guard is described as a defense against external data putting the polygon in a degenerate state. This is correct defensive coding. A polygon with fewer than 3 points is not a valid convex polygon.
+
+One edge: if a tile's saved data contains a Polygon with 2 or 1 points (malformed persistence), the delete button will be permanently disabled and the user cannot reduce it further — but cannot increase it below 3 either until they add a point. The add button is always enabled (no guard), so they can escape this state by adding a point. The escape path exists.
+
+**Finding: Correct. Edge case handled.**
+
+#### Finding 2.7 — Add point appends `[0.5, 0.5]` (ADVISORY)
+
+When "+ Add Point" is clicked, the new point is appended at `[0.5, 0.5]` (line 3161). This is the center of the tile. For a polygon that already covers the interior (e.g., a square from [0,0] to [1,1]), appending a center point will produce a degenerate concave polygon. The user will need to drag the point to a useful position via either the canvas or the numeric input. There is no path to insert at a specific index from the properties panel — only the canvas double-click (Select mode) performs a `find_best_insertion_index` insertion.
+
+This is a UX limitation, not a correctness bug. The resulting data is valid; it may just be inconvenient to position. Out of scope for this sprint.
+
+**Finding: Advisory. Not a correctness issue.**
+
+#### Finding 2.8 — `len_changed` check is redundant but harmless (ADVISORY)
+
+At line 3168, `let len_changed = points.len() != original_len`. This is computed and OR'd with `any_changed` at line 3169. However, `any_changed` is already set to `true` in the delete and add paths (lines 3157, 3162) before `len_changed` would detect anything. The variable `len_changed` can never be `true` while `any_changed` is `false` given the current code structure. It is dead logic as currently written.
+
+This is not a bug — the write-back fires correctly in all cases. It is slightly misleading code: a reader might believe `len_changed` covers a case `any_changed` does not. It does not.
+
+**Finding: Advisory. Dead logic, no behavioral impact.**
+
+#### Finding 2.9 — Write-back fires on every DragValue interaction, not only on confirmed change (CORRECT)
+
+`any_changed` is set by `ui.add(...).changed()`, which is the standard egui pattern for detecting value change. `changed()` returns `true` only when the value actually changed this frame. Write-back occurs once per changed frame, which is correct for immediate-mode live update. No spurious writes.
+
+**Finding: Correct.**
+
+#### Change 2 Verdict: SHIP
+
+---
+
+### Overall Verdict: GO for Worf
+
+Both changes are correct. No blocking issues. Advisory findings are recorded above — none require code changes before testing.
+
+**Worf should target the following test cases based on the findings above:**
+
+1. Rectangle drag: drag starts and `drag_state` is `Some(NewRectangle)` after `drag_started`, `None` before.
+2. Circle drag: same structure as rectangle.
+3. Clean tap on Rectangle/Circle canvas: `drag_state` remains `None` after press+release without threshold exceeded; no shape committed.
+4. Polygon click: point appended to `polygon_points` on click, no drag state set.
+5. Select mode vertex drag: `drag_state` is `Some(MoveVertex { index, original })` after `drag_started` when pointer is within 8px of a vertex.
+6. Select mode drag on non-vertex: `drag_state` is `None` after `drag_started` when pointer is not near any vertex.
+7. Rectangle numeric input: offset clamped 0–1, width+offset[0] never exceeds 1.0, write-back fires on change.
+8. Circle numeric input: radius accepts values > 1.0.
+9. Polygon numeric input: delete disabled at exactly 3 points, enabled at 4+; add appends [0.5, 0.5].
+10. Polygon with 2 points in data (malformed persistence): delete disabled, add enabled — escape path exists.
+
+**Pre-existing debt noted (not blocking this sprint):**
+- Wildcard `_ => {}` in `drag_stopped()` silently discards `MoveShape`, `ResizeRect`, `ResizeCircle` operations. These are unimplemented, not bugs. Recorded in DEBT section below.
+- `0.01` drag threshold magic constant in `drag_stopped()`.
+- `format!("{:?}", one_way)` in ComboBox exposes Rust debug format (pre-existing, noted in prior session).
+
+---

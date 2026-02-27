@@ -1198,6 +1198,108 @@ Do not write tests that depend on `assert_widget_enabled` or `assert_widget_disa
 
 ---
 
+## Session Status — Collision Editor Numeric Input Sprint
+
+**Last updated:** 2026-02-26 (collision editor bug fix + numeric input test pass)
+
+**Sprint scope:** Write label-presence tests for `render_collision_properties`; assess and smoke-test drag behavior for all four `CollisionDrawMode` variants.
+
+**Final test count:** 34 passing, 0 failing (20 existing + 14 new).
+
+---
+
+### What Is Tested (new tests)
+
+All 14 new tests live in `#[cfg(test)] mod tests` at the bottom of
+`crates/bevy_map_editor/src/ui/tileset_editor.rs`.
+
+**Label-presence tests — `render_collision_properties`:**
+
+| Test | Shape | Assertion |
+|---|---|---|
+| `collision_properties_rectangle_labels_present` | Rectangle | "Offset X", "Offset Y", "Width", "Height" present |
+| `collision_properties_rectangle_no_circle_labels` | Rectangle | "Center X", "Center Y", "Radius" absent |
+| `collision_properties_circle_labels_present` | Circle | "Center X", "Center Y", "Radius" present |
+| `collision_properties_circle_no_rectangle_labels` | Circle | "Offset X", "Offset Y", "Width", "Height" absent |
+| `collision_properties_polygon_4_points_labels_present` | Polygon (4 pts) | "#0", "#1", "#2", "#3", "+ Add Point" present |
+| `collision_properties_polygon_4_points_no_fifth_label` | Polygon (4 pts) | "#4" absent |
+| `collision_properties_full_no_coordinate_labels` | Full | "Offset X", "Center X", "#0", "+ Add Point" absent |
+| `collision_properties_full_info_label_present` | Full | "(Full tile collision)" present |
+| `collision_properties_none_info_label_present` | None | "(No collision set)" present; no coordinate labels |
+| `collision_properties_no_tile_selected_renders_without_panic` | any | No panic when `selected_tile = None`; no coordinate labels |
+
+**Draw mode smoke tests:**
+
+| Test | Mode | Assertion |
+|---|---|---|
+| `collision_editor_select_mode_renders_without_panic` | Select | `harness.run()` does not panic |
+| `collision_editor_rectangle_mode_renders_without_panic` | Rectangle | `harness.run()` does not panic |
+| `collision_editor_circle_mode_renders_without_panic` | Circle | `harness.run()` does not panic |
+| `collision_editor_polygon_mode_renders_without_panic` | Polygon | `harness.run()` does not panic |
+
+---
+
+### Drag Behavior — NOT Testable With Current Rig
+
+**Wesley's fix** (drag state initialization moved from `response.clicked()` to `response.drag_started()` in `handle_collision_canvas_input`) cannot be tested with `egui_kittest`.
+
+**Reason:** The collision canvas is rendered via `ui.allocate_response` — a raw painter region with no AccessKit role or label. `egui_kittest` can only drive interactions through the AccessKit tree. There is no API to inject pointer events at specific pixel coordinates on unlabeled canvas regions.
+
+**Escalation path if drag-behavior regression coverage is required:** Data must assess whether the canvas can be refactored to expose its response via an accessible wrapper, or whether `handle_collision_canvas_input` drag logic can be extracted into a pure function unit-testable without egui. This is a Data-level architecture decision.
+
+**What the smoke tests do cover:** That rendering the full `render_tileset_editor` frame with a given `CollisionDrawMode` does not panic. They exercise all branches of the `match drawing_mode` in `handle_collision_canvas_input` indirectly via the frame render — but the absence of a panic is the limit of what can be verified.
+
+---
+
+### Setup Pattern for `render_collision_properties` Tests
+
+`render_collision_properties` is a private function. Tests access it from `#[cfg(test)] mod tests` inside the same file.
+
+Required setup:
+1. `Tileset::new_empty(name, tile_size)` — creates tileset with UUID.
+2. `tileset.set_tile_collision_shape(0, shape)` — sets desired shape on tile 0.
+3. `project.tilesets.push(tileset)`.
+4. `editor_state.selected_tileset = Some(tileset.id)`.
+5. `editor_state.tileset_editor_state.collision_editor.selected_tile = Some(0)`.
+6. `Harness::new_state` with `CentralPanel::default().show(ctx, |ui| { render_collision_properties(ui, ...) })`.
+
+`Project::default()` is sufficient — no pre-existing tileset content required.
+
+The `Queryable` trait (`egui_kittest::kittest::Queryable`) must be in scope to call `harness.query_by_label()`.
+
+---
+
+### Conventions Update
+
+**`Queryable` trait import for in-file test modules:**
+
+Test modules inside `tileset_editor.rs` (or any file without `use crate::testing::*`) must import the trait explicitly:
+
+```rust
+use egui_kittest::kittest::Queryable;
+```
+
+`crate::testing::*` is not imported in these tests because they access private functions not available through the public testing module. The `Queryable` trait provides `query_by_label`, `get_by_label`, etc. on `Harness`.
+
+**egui Window contents and first-frame AccessKit tree:**
+
+egui Windows defer inner widget layout to subsequent frames in some harness configurations. Do not assert on labels inside a `render_tileset_editor` harness after only one `harness.run()` call if the labels come from within the Window body. Labels outside the Window (e.g., from a CentralPanel wrapper calling `render_collision_properties` directly) are stable after one frame.
+
+**Smoke tests are no-panic assertions only:**
+
+Smoke tests using `render_tileset_editor` do not assert on AccessKit labels. The no-panic guarantee from `harness.run()` completing without panicking is the extent of what is verifiable for canvas-based rendering.
+
+---
+
+### Open Items Carried Forward
+
+1. `assert_widget_enabled` / `assert_widget_disabled` — still unverified against actual egui `ui.disable()` AccessKit propagation. Do not use until empirically confirmed.
+2. Menu bar interaction tests — no menu bar tests written yet.
+3. Snapshot tests — Phase 3, manual only, Troi sign-off required before blessing.
+4. Drag behavior coverage — blocked by canvas architecture. Escalate to Data if required.
+
+---
+
 ## SE Implementation Proposal
 
 **Author:** SE
@@ -1715,3 +1817,524 @@ bring `egui::SidePanel` and `egui::TopBottomPanel` into scope. This is intention
 it avoids adding the import at the module level where it would conflict with the
 existing import structure. Any harness builder that needs egui panel wrappers should
 follow the same pattern.
+
+---
+
+## Collision Editor Sprint — UX Spec
+
+**Author:** UX Designer (Counselor Troi)
+**Status:** Approved for implementation
+**Target file:** `crates/bevy_map_editor/src/ui/tileset_editor.rs`
+**Functions in scope:** `handle_collision_canvas_input`, `render_collision_properties`
+**Sprint covers:** drag-draw bug fix + numeric input panel
+
+---
+
+### Background: What the Code Actually Does Today
+
+Reading the source before designing is not optional. Here is the honest state of the existing implementation, because the spec must be grounded in it.
+
+`handle_collision_canvas_input` (line 2473) contains the core bug: Rectangle and Circle drag state is initialized inside `response.clicked()` (line 2539). `clicked()` in egui fires only on a clean mouse-up with no movement exceeding the drag threshold. It never fires mid-drag. So when the user presses and drags, `clicked()` is suppressed, the drag state is never populated, and nothing is committed.
+
+Select mode already uses `response.drag_started()` (line 2583) to begin vertex moves. Rectangle and Circle must be corrected to match this pattern.
+
+The `render_collision_properties` function (line 2946) currently shows: shape name as a label, one-way direction combo box, layer and mask DragValue fields, "Set Full Collision" and "Clear Collision" buttons. There are no per-shape coordinate fields at all. That is the gap this spec fills.
+
+---
+
+### Part 1: Corrected Drag Interaction Model — Rectangle and Circle
+
+#### 1.1 The Mental Model to Preserve
+
+Rectangle mode: the user places a corner, drags to the opposite corner, releases. The shape expands as they drag. This is identical to every drawing tool in every image editor the user has ever used. The bug breaks this entirely — nothing happens. The fix must restore exactly the expected mental model, not introduce a new one.
+
+Circle mode: the user places a center point, drags outward to set radius, releases. The circle expands as they drag. Again: standard, expected. The existing instruction text ("Click center, then drag to set radius") already describes the correct mental model — the implementation simply doesn't match it.
+
+#### 1.2 Rectangle Mode — Corrected Event Sequence
+
+| Event | Action |
+|---|---|
+| `drag_started()` while in Rectangle mode | Record `start_pos` from current pointer position. Set `drag_state = Some(CollisionDragState { operation: NewRectangle, start_pos, current_pos: start_pos })`. |
+| `dragged()` | Update `drag_state.current_pos` to current pointer position. (This already works — no change needed.) |
+| `drag_stopped()` | Commit: compute min/max from start and current, build `CollisionShape::Rectangle`. Reject if width < 0.01 or height < 0.01 (too small to be intentional). Clear drag state. (Commit logic already correct — no change needed.) |
+| Plain click with no drag | No-op. Do not create a shape. The minimum-size threshold (0.01) handles accidental near-zero drags. A true click never crossed the drag threshold, so `drag_started()` either never fired or fired and `drag_stopped()` discards the result. |
+
+**Why no-op for plain click:** creating a minimum-size shape on click would be confusing. The user has no feedback that a tiny shape was placed. With textures behind the canvas, a 1% tile collision square is invisible at a glance. If the user wants a full-tile collision they use "Set Full Collision." If they want a specific shape they drag. A no-op is unambiguous.
+
+**Preview during drag:** yellow semi-transparent rectangle from `start_pos` to `current_pos`, using the existing preview colors (`from_rgba_unmultiplied(255, 200, 0, 60)` fill, `from_rgb(255, 200, 0)` stroke). This already renders correctly once drag_state is populated. No change to the preview rendering.
+
+#### 1.3 Circle Mode — Corrected Event Sequence
+
+| Event | Action |
+|---|---|
+| `drag_started()` while in Circle mode | Record `center = current pointer position (normalized)`. Set `drag_state = Some(CollisionDragState { operation: NewCircle { center }, start_pos: center, current_pos: center })`. |
+| `dragged()` | Update `drag_state.current_pos`. The preview computes radius from distance between `center` and `current_pos`. (Already correct once drag_state is populated.) |
+| `drag_stopped()` | Commit: compute Euclidean distance from center to current_pos as radius. Reject if radius < 0.01. Build `CollisionShape::Circle { offset: center, radius }`. Clear drag state. (Already correct.) |
+| Plain click with no drag | No-op. Same rationale as Rectangle. |
+
+#### 1.4 The Fix Is One Location
+
+The Rectangle and Circle arms currently inside `if response.clicked()` (lines 2552–2579) must move to a new `if response.drag_started()` block, structured identically to the existing Select mode `drag_started()` block (lines 2583–2612). The `clicked()` handler retains only the Polygon arm (adding a point) — that arm is click-based by design and must not move.
+
+The `drag_started()` block for Rectangle/Circle should be positioned adjacent to — or merged with — the existing `drag_started()` block for Select mode, distinguished by a `match drawing_mode` inside.
+
+#### 1.5 Escaping an In-Progress Draw
+
+Pressing Escape while dragging should cancel the drag without committing. Clear `drag_state`. This is consistent with the existing Escape handling for the context menu (line 2932). The SE should add this behavior.
+
+---
+
+### Part 2: Numeric Input Panel
+
+#### 2.1 Design Question: Mode-Gated or Always Visible?
+
+The numeric panel should be **always visible and always editable**, regardless of the current drawing mode.
+
+Rationale: the user switches to numeric input because the canvas draw is imprecise. Forcing them to also switch modes to access the numeric panel adds an extra cognitive step that serves no one. The drawing mode is about what the *canvas* does with mouse input. The numeric panel is a direct data editor. These are independent concerns. Making them dependent on each other would be a false constraint.
+
+One consequence: if the user is in Rectangle mode and edits numeric fields, the canvas shows the result immediately. This is correct and desirable. The numeric fields and the canvas are two views of the same data. They stay in sync at all times.
+
+#### 2.2 Placement in the Right Panel
+
+The numeric input section appears in `render_collision_properties`, below the existing "Properties" heading, between the shape name label and the separator before the one-way/layer/mask fields.
+
+Specifically, after `ui.label(format!("Shape: {}", collision_data.shape.name()))`, add a separator and then the shape-specific numeric fields. This groups shape geometry (the new section) clearly apart from collision behavior (one-way, layer, mask).
+
+#### 2.3 Panel Layout — ASCII Mockup
+
+```
+┌──────────────────────────────┐
+│ Tools                        │
+│ ──────────────────────────── │
+│ Drawing Mode:                │
+│ [Select] [Rect]              │
+│ [Circle] [Polygon]           │
+│                              │
+│ Instructions:                │
+│  Click and drag to draw rect │
+│                              │
+│ ──────────────────────────── │
+│ Properties                   │
+│                              │
+│ Shape: Rectangle             │
+│                              │
+│ Shape Coordinates (0 – 1)    │  <- new section header
+│                              │
+│ Offset X  [0.250 ▲▼]        │  <- DragValue
+│ Offset Y  [0.250 ▲▼]        │
+│ Width     [0.500 ▲▼]        │
+│ Height    [0.500 ▲▼]        │
+│                              │
+│ ──────────────────────────── │
+│ One-way   [None        v]    │
+│ Layer     [0  ▲▼]           │
+│ Mask      [0  ▲▼]           │
+│                              │
+│ ──────────────────────────── │
+│ [Set Full Collision]         │
+│ [Clear Collision]            │
+└──────────────────────────────┘
+```
+
+For Circle:
+```
+│ Shape Coordinates (0 – 1)    │
+│                              │
+│ Center X  [0.500 ▲▼]        │
+│ Center Y  [0.500 ▲▼]        │
+│ Radius    [0.250 ▲▼]        │
+```
+
+For Polygon:
+```
+│ Shape Coordinates (0 – 1)    │
+│                              │
+│ #0  X [0.10 ▲▼]  Y [0.20 ▲▼]  [x] │
+│ #1  X [0.90 ▲▼]  Y [0.20 ▲▼]  [x] │
+│ #2  X [0.50 ▲▼]  Y [0.80 ▲▼]  [x] │
+│ [+ Add Point]                │
+```
+
+For Full:
+```
+│ Shape: Full                  │
+│ (Full tile collision)        │
+```
+
+For None:
+```
+│ Shape: None                  │
+│ (No collision set)           │
+```
+
+#### 2.4 Field Specifications
+
+All fields use `egui::DragValue`. No raw text input.
+
+**Rectangle**
+
+| Label | Field | Range | Step | Notes |
+|---|---|---|---|---|
+| `Offset X` | `offset[0]` | 0.0 – 1.0 | 0.005 | top-left x of rectangle |
+| `Offset Y` | `offset[1]` | 0.0 – 1.0 | 0.005 | top-left y of rectangle |
+| `Width` | `size[0]` | 0.0 – 1.0 | 0.005 | must not push right edge past 1.0 |
+| `Height` | `size[1]` | 0.0 – 1.0 | 0.005 | must not push bottom edge past 1.0 |
+
+Range for Width: 0.0 to `(1.0 - offset[0])`. Range for Height: 0.0 to `(1.0 - offset[1])`. These are computed dynamically, not fixed at 1.0. This prevents the shape from overflowing the tile boundary, which would produce nonsensical collision data.
+
+**Circle**
+
+| Label | Field | Range | Step | Notes |
+|---|---|---|---|---|
+| `Center X` | `offset[0]` | 0.0 – 1.0 | 0.005 | center x |
+| `Center Y` | `offset[1]` | 0.0 – 1.0 | 0.005 | center y |
+| `Radius` | `radius` | 0.0 – 1.0 | 0.005 | normalized; 1.0 = full tile width |
+
+No clamping of radius to keep the circle inside tile bounds. A circle centered at (0.5, 0.5) with radius 0.6 will extend slightly outside the tile — this is physically valid collision data. Do not artificially restrict it.
+
+**Polygon — per-row**
+
+Each row renders on one `ui.horizontal` call:
+
+```
+ui.label(format!("#{}", i));
+ui.label("X");
+ui.add(DragValue::new(&mut points[i][0]).range(0.0..=1.0).speed(0.005));
+ui.label("Y");
+ui.add(DragValue::new(&mut points[i][1]).range(0.0..=1.0).speed(0.005));
+if ui.small_button("x").clicked() { ... }
+```
+
+Below the last row: `if ui.button("+ Add Point").clicked()` — appends `[0.5, 0.5]` to the points list.
+
+Delete is disabled (grayed out) when points.len() <= 3. Do not hide the button — hiding it would shift layout. Disable it. Use `ui.add_enabled(points.len() > 3, egui::Button::new("x"))`.
+
+Adding a point when the polygon has fewer than 3 points (should not normally occur but is possible if the shape was constructed externally) appends without restriction.
+
+#### 2.5 Section Header
+
+The section above the fields must be labeled:
+
+`ui.label("Shape Coordinates (0 – 1):");`
+
+This communicates the coordinate system to the user without requiring a tooltip or separate documentation. The label is the documentation.
+
+Do not use `ui.heading()` for this — it is a subsection within the Properties heading that already exists. Use `ui.label()` with the existing text style. A visual separator above it is appropriate.
+
+#### 2.6 Reading and Writing the Shape
+
+The SE must read the current shape from `collision_data` (which is already cloned from project state at the top of `render_collision_properties`), render all fields from it, then detect changes and write back.
+
+The pattern for Rectangle — build a locally-mutable copy, render DragValues from it, compare to original after rendering, write back only if changed:
+
+```
+// inside the Rectangle arm:
+let mut offset = *offset;    // copy from collision_data
+let mut size = *size;
+// ... render DragValues mutating offset and size ...
+let changed = offset != original_offset || size != original_size;
+if changed {
+    let shape = CollisionShape::Rectangle { offset, size };
+    tileset.set_tile_collision_shape(tile_idx, shape);
+    project.mark_dirty();
+}
+```
+
+This is the established borrow-checker pattern documented in `CLAUDE.md` ("Clone data before rendering grids, apply changes after rendering completes"). The SE must follow it.
+
+For Circle: same pattern with `offset` and `radius`.
+
+For Polygon: the borrow checker is more involved because the point list is mutated per-row. The SE must clone `points` into a local `Vec`, render all rows from it, detect any difference by index, and write back if any point changed or a point was added/removed.
+
+#### 2.7 Canvas and Numeric Panel Synchronization
+
+There is one authoritative source of truth: the project's collision data stored in `project.tilesets`. Both the canvas and the numeric panel read from it and write to it every frame. egui is immediate mode — there is no separate state to synchronize. If the user drags on the canvas, `drag_stopped()` commits to project data, and on the next frame the numeric panel reads the new values. If the user edits a numeric field, the change is written to project data, and on the next frame the canvas draws the updated shape.
+
+The only subtlety is the in-progress drag preview. While `drag_state` is Some (mid-drag), the canvas draws a preview that is *not yet committed to project data*. During this time, the numeric panel continues to show the last *committed* values — it does not live-preview the drag. This is acceptable. The canvas preview is the live feedback for drag operations. Numeric panel lag during a drag is not a problem because the user is watching the canvas, not the panel, while dragging.
+
+**This is the correct behavior. The SE must not attempt to make the numeric panel reflect in-progress drag state.** Doing so would require either committing on every drag frame (causing excessive `mark_dirty` calls) or maintaining a shadow copy of the shape in `CollisionEditorState` (unnecessary complexity). The commit-on-release model is correct.
+
+---
+
+### Part 3: Edge Cases the SE Must Handle
+
+#### 3.1 Rectangle Width/Height Max Range Is Dynamic
+
+The max for Width is `(1.0 - offset_x)`, not 1.0. If the user has Offset X = 0.8, the Width field must not allow values above 0.2. This is computed at render time using the current offset value (which may itself have just been edited this frame).
+
+Implementation: compute `max_width = (1.0_f32 - offset[0]).max(0.0)` and `max_height = (1.0_f32 - offset[1]).max(0.0)` before rendering the Width and Height DragValues.
+
+#### 3.2 No Tile Selected
+
+If `collision_editor.selected_tile` is None, `render_collision_properties` already shows "No tile selected" and returns early. The numeric section must not render in this case. No change needed — it falls naturally inside the existing early-return.
+
+#### 3.3 Tile Has No Collision Properties
+
+`collision_data` defaults to `CollisionData::default()` when no properties exist. The default shape is `CollisionShape::None`. The numeric section renders the None variant ("No collision set") and shows no fields. This is correct — do not create a shape just because the panel exists.
+
+#### 3.4 Polygon With Fewer Than 3 Points
+
+This should not occur from canvas drawing (polygon commits only when >= 3 points), but external data or future imports could produce it. Render the rows that exist. The "x" delete button is disabled when len <= 3, but if len is already 2 or 1, the button remains disabled and the user can only add points. This is the graceful behavior — do not panic, do not refuse to render.
+
+#### 3.5 Simultaneous Canvas Drag and Numeric Field Hover
+
+If the user begins a drag on the canvas and their pointer drifts over a DragValue in the panel, egui's response system will resolve interactions on the canvas widget (which has `Sense::click_and_drag()`) because that interaction started first. The DragValue will not capture the drag. This is correct default egui behavior — no special handling required.
+
+#### 3.6 Escape Cancels In-Progress Rectangle/Circle Drag
+
+As specified in Part 1.5: pressing Escape while `drag_state` is Some and mode is Rectangle or Circle clears the drag state without committing. The check should be placed in `handle_collision_canvas_input` after the drag preview block. Use `ui.input(|i| i.key_pressed(egui::Key::Escape))`.
+
+---
+
+### Part 4: What Worf Should Test
+
+This section is advisory to the Test Engineer. Worf owns the final test decisions.
+
+**Drag behavior (integration tests against real state, not snapshot):**
+- Rectangle mode: simulate `drag_started()` + `dragged()` + `drag_stopped()` and assert `CollisionShape::Rectangle` is set on the tile.
+- Circle mode: same sequence, assert `CollisionShape::Circle`.
+- Sub-threshold drag (delta < 0.01 normalized): assert shape remains unchanged.
+- Escape mid-drag: assert drag state cleared and shape unchanged.
+
+**Numeric fields (snapshot tests for visual layout):**
+- Snapshot of right panel when shape is Rectangle — fields visible, correct labels.
+- Snapshot of right panel when shape is Circle — fields visible.
+- Snapshot of right panel when shape is Polygon with 3 points — rows visible, delete button disabled.
+- Snapshot of right panel when shape is Polygon with 4 points — delete buttons enabled.
+- Snapshot of right panel when shape is None — "No collision set" visible, no coordinate fields.
+- Snapshot of right panel when shape is Full — "Full tile collision" visible, no coordinate fields.
+
+**Accessibility (AccessKit):**
+- "Offset X", "Offset Y", "Width", "Height" DragValue labels must be accessible. Use `ui.label()` + `ui.add(DragValue)` in a `ui.horizontal()` so the label precedes the widget in the AccessKit tree.
+- "+ Add Point" button must be accessible by label.
+- Delete ("x") buttons: when disabled, verify they are not interactive in the accessibility tree.
+
+---
+
+### Checkpoint
+
+**State:** Spec complete, not yet implemented.
+**Next action:** SE implements Part 1 (drag fix) first, verified by Worf. Then Part 2 (numeric panel), verified by Worf snapshot tests.
+**Open questions:** None. All design decisions are resolved in this document.
+**Blockers:** None.
+
+---
+
+## Collision Editor Sprint — UX Conformance Review
+
+**Author:** UX Designer (Counselor Troi)
+**Date:** 2026-02-26
+**Reviewer:** Counselor Troi
+**Implementation under review:** `crates/bevy_map_editor/src/ui/tileset_editor.rs`, function `render_collision_properties`, lines 2971–3189 (the `match &collision_data.shape` block)
+**Spec reference:** `agents/testing.md` — `## Collision Editor Sprint — UX Spec`, Issue 2
+
+---
+
+### Verdict
+
+**CONFORMS — with two advisory notes.**
+
+No blocking deviations were found. All spec-mandated behaviors are present and correct. Two minor presentation deviations are advisory and do not affect user experience.
+
+---
+
+### Checklist
+
+#### 1. Section header label: `"Shape Coordinates (0 – 1):"`
+
+**Spec:** `ui.label("Shape Coordinates (0 \u{2013} 1):");`
+**Implementation (Rectangle arm, line 2985):** `ui.label("Shape Coordinates (0 \u{2013} 1):");`
+**Implementation (Circle arm, line 3052):** `ui.label("Shape Coordinates (0 \u{2013} 1):");`
+**Implementation (Polygon arm, line 3104):** `ui.label("Shape Coordinates (0 \u{2013} 1):");`
+
+Result: PASS. The Unicode en-dash (U+2013) is used correctly in all three arms. The trailing colon is present.
+
+---
+
+#### 2. Field labels
+
+Spec table (verbatim):
+
+| Label spec | Field | Arm |
+|---|---|---|
+| `Offset X` | `offset[0]` | Rectangle |
+| `Offset Y` | `offset[1]` | Rectangle |
+| `Width` | `size[0]` | Rectangle |
+| `Height` | `size[1]` | Rectangle |
+| `Center X` | `offset[0]` | Circle |
+| `Center Y` | `offset[1]` | Circle |
+| `Radius` | `radius` | Circle |
+
+Implementation labels found at lines 2992, 2998, 3013, 3023, 3057, 3063, 3071:
+
+- Rectangle: `"Offset X"`, `"Offset Y"`, `"Width   "` (3 trailing spaces), `"Height  "` (2 trailing spaces)
+- Circle: `"Center X"`, `"Center Y"`, `"Radius  "` (2 trailing spaces)
+
+Result for label identity: PASS — the visible label text is correct for all seven fields.
+
+**Advisory A (presentation):** `"Width"`, `"Height"`, and `"Radius"` contain trailing space padding intended to align the DragValue widgets visually. In immediate-mode egui, `ui.horizontal()` uses widget intrinsic widths, not string padding, for alignment. The trailing spaces are not harmful, but they are unnecessary and will not achieve visual alignment — egui ignores whitespace when computing horizontal layout spacing. The accessible label string visible to kittest will include the trailing spaces, which means `assert_widget_labeled("Width")` will fail if tested without the padding. Worf must use the padded strings in any label-based assertions, or Barclay should remove the padding. This is advisory because the user-visible display is unaffected, but the accessible name mismatch is a latent test friction point.
+
+---
+
+#### 3. DragValue step (0.005) and ranges
+
+Spec:
+- All offsets, Width, Height, Center X, Center Y: step 0.005, range 0.0..=1.0 (Width/Height use dynamic max)
+- Radius: step 0.005, no upper bound (unclamped)
+- Width max: `(1.0 - offset[0]).max(0.0)` computed dynamically
+- Height max: `(1.0 - offset[1]).max(0.0)` computed dynamically
+
+Implementation:
+- `Offset X` / `Offset Y`: `.range(0.0..=1.0).speed(0.005)` — PASS
+- `Width`: `.range(0.0..=max_width).speed(0.005)` where `max_width = (1.0_f32 - offset[0]).max(0.0)` — PASS. Dynamic computation is correct. Additionally, the implementation clamps the existing `size` value to the new max before rendering, which prevents a stale-over-boundary state from persisting one frame after an offset change. This is correct behavior and consistent with the spec's intent.
+- `Height`: same pattern — PASS
+- `Center X` / `Center Y`: `.range(0.0..=1.0).speed(0.005)` — PASS
+- `Radius`: `.range(0.0..=f32::MAX).speed(0.005)` — PASS. The spec says "no upper bound." Using `f32::MAX` as the range upper limit achieves this. The spec also says minimum 0.0, which is respected.
+
+Result: PASS on all DragValue configuration.
+
+---
+
+#### 4. Polygon row format
+
+Spec: each row contains `#N`, X DragValue, Y DragValue, delete button — rendered in a `ui.horizontal()`.
+
+Spec reference code (lines 1896–1905 of spec):
+```
+ui.label(format!("#{}", i));
+ui.label("X");
+ui.add(DragValue::new(&mut points[i][0])...);
+ui.label("Y");
+ui.add(DragValue::new(&mut points[i][1])...);
+```
+
+Implementation (lines 3111–3141):
+```rust
+ui.horizontal(|ui| {
+    ui.label(format!("#{}", i));
+    ui.label("X");
+    // DragValue for points[i][0]
+    ui.label("Y");
+    // DragValue for points[i][1]
+    // delete button (add_enabled)
+});
+```
+
+Result: PASS. Row order is `#N`, X label, X DragValue, Y label, Y DragValue, delete button — matching the spec exactly. The X and Y inline labels aid scannability. The delete button is at the end of the row, correct.
+
+---
+
+#### 5. Delete button: disabled (not hidden) at len <= 3
+
+Spec: `ui.add_enabled(points.len() > 3, egui::Button::new("x"))`. The button must remain visible at all times; hiding it would shift layout.
+
+Implementation (lines 3133–3141):
+```rust
+let can_delete = points.len() > 3;
+if ui
+    .add_enabled(can_delete, egui::Button::new("x"))
+    .clicked()
+{ ... }
+```
+
+Result: PASS. The button is disabled, not hidden. The `add_enabled` call matches the spec verbatim.
+
+---
+
+#### 6. Add Point: appends [0.5, 0.5]
+
+Spec: `if ui.button("+ Add Point").clicked()` — appends `[0.5, 0.5]` to points.
+
+Implementation (lines 3146–3162):
+```rust
+if ui.button("+ Add Point").clicked() {
+    add_point = true;
+}
+// ...
+if add_point {
+    points.push([0.5, 0.5]);
+    any_changed = true;
+}
+```
+
+Result: PASS. Button label is `"+ Add Point"` (exact match). Default point is `[0.5, 0.5]` (exact match). The deferred-push pattern (flag set inside UI loop, applied after) is correct.
+
+---
+
+#### 7. Full and None arms: labels only, no coordinate fields
+
+Spec:
+- `Full`: render `"(Full tile collision)"` label only
+- `None`: render `"(No collision set)"` label only (implied by spec — the spec addresses Full explicitly; None is symmetric)
+
+Implementation (lines 3180–3188):
+```rust
+bevy_map_core::CollisionShape::Full => {
+    ui.label("(Full tile collision)");
+}
+bevy_map_core::CollisionShape::None => {
+    ui.label("(No collision set)");
+}
+```
+
+Result: PASS. No DragValues, no coordinate section header, no separator — labels only. The Full arm text `"(Full tile collision)"` matches the spec mock-up exactly.
+
+**Advisory B (None arm label):** The spec mock-up and field tables do not specify the exact label for the None arm. Barclay chose `"(No collision set)"`. This is a reasonable and user-friendly choice that is consistent with the Full arm's pattern. No action required.
+
+---
+
+#### 8. Always visible — not gated on `drawing_mode`
+
+Spec: the numeric panel must be visible regardless of the current drawing mode. It must not be hidden inside a `match drawing_mode` block or behind a mode condition.
+
+The call site (line 2076):
+```rust
+ui.separator();
+
+// Properties for selected tile
+render_collision_properties(ui, editor_state, project);
+```
+
+This call is at the same indentation level as the `match collision_state.drawing_mode { ... }` block (lines 2055–2071), which ends at line 2071. The separator and the `render_collision_properties` call follow the match block unconditionally. The function is not inside any arm of that match.
+
+Result: PASS. The numeric panel renders in all drawing modes.
+
+---
+
+### Summary of Findings
+
+| Check | Result |
+|---|---|
+| Section header en-dash and colon | PASS |
+| Field labels (all 7) | PASS |
+| DragValue step = 0.005 (all fields) | PASS |
+| Offset X/Y range 0.0..=1.0 | PASS |
+| Width/Height dynamic max range | PASS |
+| Radius unclamped (0.0..=f32::MAX) | PASS |
+| Polygon row format: #N, X DV, Y DV, delete | PASS |
+| Delete disabled (not hidden) at len <= 3 | PASS |
+| Add Point appends [0.5, 0.5] | PASS |
+| Full arm: label only, no fields | PASS |
+| None arm: label only, no fields | PASS |
+| Not gated on drawing_mode | PASS |
+
+**Advisory A (trailing space padding on "Width", "Height", "Radius"):** Remove trailing spaces or Worf must account for them in label-based assertions. No UX impact on display.
+
+**Advisory B (None arm label text):** Text `"(No collision set)"` is unspecified but appropriate. Accepted as-is.
+
+---
+
+### Sign-off
+
+The numeric input panel implementation by Barclay conforms to the UX spec. There are no blocking deviations. Advisory A should be resolved by Barclay (remove trailing padding) before Worf writes accessibility-label-based assertions, to avoid test friction. It does not block sign-off.
+
+**Troi sign-off: APPROVED.**
+
+---
+
+### Checkpoint (post-review)
+
+**State:** UX conformance review complete. Implementation approved.
+**Next action:** Worf proceeds with snapshot tests. Worf must account for the trailing-space label issue in Advisory A when writing label-based assertions — or Barclay removes the padding first (recommended).
+**Open questions:** None.
+**Blockers:** None.
