@@ -543,13 +543,5 @@ function itself does not need modification. This pattern generalizes to all thre
 The panel `id_source` strings (`"inspector"`, `"tree_view"`, `"asset_browser"`) must match
 production code to avoid id collisions if tests ever run multiple panels in one harness.
 
-**Task #2 is now fully unblocked. All prerequisites are complete:**
-1. Troi spec defines the assertion semantics (absence-based, anchor = heading node).
-2. All three panels have heading nodes with stable anchor strings.
-3. Data has confirmed the harness architecture.
-Worf may proceed with Task #2 implementation.
-
 **Blocked / deferred:**
 - `process_edit_actions` has no test coverage (see DEBT table)
-
-**Next action:** Assign Task #2 to Worf. All prerequisites are satisfied.
