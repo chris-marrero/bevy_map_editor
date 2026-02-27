@@ -1,10 +1,12 @@
 //! Dialog windows for the editor
 
+use crate::preferences::EditorPreferences;
 use crate::project::Project;
 use crate::ui::dialog_box::{DialogBinds, DialogStatus, DialogType};
 use crate::EditorState;
 use crate::{AssetsBasePath, CopyFileCallback};
 use bevy_egui::egui;
+use uuid::Uuid;
 
 /// Actions that can be triggered from menus
 #[derive(Debug, Clone, PartialEq)]
@@ -38,6 +40,34 @@ pub enum PendingAction {
     OpenInVSCode,
     /// Open game project folder in file browser
     OpenProjectFolder,
+    /// Run all enabled automap rule sets against the currently active level.
+    ///
+    /// Dispatched from the "Run Rules" button in the Automap Rule Editor and from
+    /// the `Ctrl+Shift+R` shortcut (once wired). The action is handled in
+    /// `process_edit_actions` in `ui/mod.rs`.
+    RunAutomapRules,
+    /// Prompt the user to confirm deleting a layer that has automap rule references.
+    ///
+    /// Shown when a layer is about to be deleted and
+    /// `project.count_automap_orphan_refs(layer_id)` returns a non-zero count and
+    /// `preferences.suppress_automap_orphan_warning` is false.
+    ///
+    /// If the user confirms, the deletion is performed and the orphan references are
+    /// cleaned up via `project.validate_and_cleanup()`. If the user cancels, nothing
+    /// happens. If "Don't show again" is checked, `preferences.suppress_automap_orphan_warning`
+    /// is set to `true` before the deletion proceeds.
+    ConfirmLayerDeleteWithOrphanWarning {
+        /// The stable UUID of the layer that is about to be deleted.
+        layer_id: Uuid,
+        /// The index of the layer within its level's `layers` vec.
+        layer_idx: usize,
+        /// The ID of the level that owns this layer.
+        level_id: Uuid,
+        /// Number of rule sets that reference this layer.
+        affected_rule_set_count: usize,
+        /// Number of individual rules that reference this layer.
+        affected_rule_count: usize,
+    },
 }
 
 /// Render all dialogs
@@ -47,6 +77,7 @@ pub fn render_dialogs(
     project: &mut Project,
     assets_base_path: &AssetsBasePath,
     dialog_binds: &mut DialogBinds,
+    preferences: &mut EditorPreferences,
 ) {
     render_new_level_dialog(ctx, editor_state, project);
     render_new_tileset_dialog(ctx, editor_state, project, dialog_binds, assets_base_path);
@@ -54,6 +85,7 @@ pub fn render_dialogs(
     render_copy_file_dialog(ctx, editor_state, project, assets_base_path);
     render_about_dialog(ctx, editor_state);
     render_error_dialog(ctx, editor_state);
+    render_automap_orphan_warning_dialog(ctx, editor_state, project, preferences);
 
     // Handle pending file actions
     if let Some(action) = editor_state.pending_action.take() {
@@ -137,6 +169,100 @@ pub fn render_dialogs(
             }
         }
     }
+}
+
+/// Render the "this layer has automap references — confirm delete?" dialog.
+///
+/// This function checks whether `pending_action` is a
+/// `ConfirmLayerDeleteWithOrphanWarning`. If so, it renders a modal-style
+/// confirmation window. Button clicks either perform the deletion (clearing
+/// the action) or cancel (also clearing the action). While the window is
+/// open, the action remains in `pending_action` so the dialog persists
+/// across frames.
+///
+/// The function calls `project.validate_and_cleanup()` after deletion to
+/// remove the now-orphaned automap references.
+fn render_automap_orphan_warning_dialog(
+    ctx: &egui::Context,
+    editor_state: &mut EditorState,
+    project: &mut Project,
+    preferences: &mut EditorPreferences,
+) {
+    // Peek — only proceed if the action is the orphan warning variant.
+    let is_orphan_warning = matches!(
+        &editor_state.pending_action,
+        Some(PendingAction::ConfirmLayerDeleteWithOrphanWarning { .. })
+    );
+    if !is_orphan_warning {
+        return;
+    }
+
+    // Extract the fields we need while the action is still in pending_action.
+    // We keep the action in place until the user makes a choice.
+    let (_layer_id, layer_idx, level_id, affected_rule_set_count, affected_rule_count) =
+        match &editor_state.pending_action {
+            Some(PendingAction::ConfirmLayerDeleteWithOrphanWarning {
+                layer_id,
+                layer_idx,
+                level_id,
+                affected_rule_set_count,
+                affected_rule_count,
+            }) => (*layer_id, *layer_idx, *level_id, *affected_rule_set_count, *affected_rule_count),
+            _ => return,
+        };
+
+    let mut do_delete = false;
+    let mut do_cancel = false;
+    let mut suppress = preferences.suppress_automap_orphan_warning;
+
+    egui::Window::new("Confirm Layer Delete")
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            ui.label(format!(
+                "This layer is referenced by {} rule set(s) and {} rule(s) in the automap configuration.",
+                affected_rule_set_count, affected_rule_count
+            ));
+            ui.label("Deleting it will remove those references.");
+            ui.separator();
+            ui.checkbox(&mut suppress, "Don't show this warning again");
+            ui.separator();
+            ui.horizontal(|ui| {
+                if ui.button("Delete Anyway").clicked() {
+                    do_delete = true;
+                }
+                if ui.button("Cancel").clicked() {
+                    do_cancel = true;
+                }
+            });
+        });
+
+    // Apply suppress checkbox state immediately so the checkbox is responsive.
+    preferences.suppress_automap_orphan_warning = suppress;
+
+    if do_delete {
+        // Clear the pending action before performing the deletion.
+        editor_state.pending_action = None;
+
+        if let Some(level) = project.get_level_mut(level_id) {
+            if layer_idx < level.layers.len() {
+                level.layers.remove(layer_idx);
+                // Adjust selected layer downward if it pointed past the end.
+                if let Some(selected) = editor_state.selected_layer {
+                    if selected >= level.layers.len() {
+                        editor_state.selected_layer = level.layers.len().checked_sub(1);
+                    }
+                }
+            }
+        }
+
+        // Remove orphaned automap references now that the layer is gone.
+        project.validate_and_cleanup();
+    } else if do_cancel {
+        editor_state.pending_action = None;
+    }
+    // Otherwise: leave pending_action in place; the window will re-render next frame.
 }
 
 fn render_new_level_dialog(
