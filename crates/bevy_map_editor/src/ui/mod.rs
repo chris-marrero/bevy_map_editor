@@ -4,7 +4,6 @@
 
 mod animation_editor;
 mod asset_browser;
-mod automap_editor;
 mod code_preview_dialog;
 mod dialog_box;
 mod dialogs;
@@ -27,7 +26,6 @@ mod tree_view;
 mod world_view;
 
 pub use animation_editor::{render_animation_editor, AnimationEditorResult, AnimationEditorState};
-pub use automap_editor::{render_automap_editor, AutomapEditorState};
 pub use asset_browser::{render_asset_browser, AssetBrowserResult, AssetBrowserState};
 pub use code_preview_dialog::{render_code_preview_dialog, CodePreviewDialogState, CodePreviewTab};
 pub use dialogs::*;
@@ -1406,8 +1404,7 @@ fn render_ui(
     ui_hover_state.over_modal_editor = editor_state.show_tileset_editor
         || editor_state.show_spritesheet_editor
         || editor_state.show_animation_editor
-        || editor_state.show_dialogue_editor
-        || editor_state.show_automap_editor;
+        || editor_state.show_dialogue_editor;
 
     // Central area - world view or level view
     egui::CentralPanel::default()
@@ -1662,11 +1659,6 @@ fn render_ui(
                 }
             }
         }
-    }
-
-    // Automap Rule Editor (modal window)
-    if editor_state.show_automap_editor {
-        render_automap_editor(ctx, &mut editor_state, &mut project);
     }
 
     // Schema Editor (modal window)
