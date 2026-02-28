@@ -103,6 +103,16 @@ pub struct AutomapEditorState {
     pub pending_delete_rule: Option<usize>,
     /// Whether the Rule Set Settings collapsible section is expanded.
     pub rule_set_settings_open: bool,
+    /// Layer UUID selected in the "Input" layer combo in the layer mapping strip.
+    ///
+    /// Defaults to `None`; set to the first available layer when a level is selected.
+    /// Used as the `layer_id` when creating new `InputConditionGroup`s.
+    pub selected_input_layer: Option<Uuid>,
+    /// Layer UUID selected in the "Output" layer combo in the layer mapping strip.
+    ///
+    /// Defaults to `None`; set to the first available layer when a level is selected.
+    /// Used as the `layer_id` when creating new `OutputAlternative`s.
+    pub selected_output_layer: Option<Uuid>,
 }
 
 impl Default for AutomapEditorState {
@@ -121,6 +131,8 @@ impl Default for AutomapEditorState {
             pending_delete_rule_set: None,
             pending_delete_rule: None,
             rule_set_settings_open: true,
+            selected_input_layer: None,
+            selected_output_layer: None,
         }
     }
 }
@@ -507,7 +519,9 @@ fn render_rule_column(
     // Header: Add / Dup / Del buttons.
     ui.horizontal(|ui| {
         if ui.button("+ Add").clicked() {
-            let new_rule = make_default_rule();
+            let input_layer_id = editor_state.automap_editor_state.selected_input_layer.unwrap_or(Uuid::nil());
+            let output_layer_id = editor_state.automap_editor_state.selected_output_layer.unwrap_or(Uuid::nil());
+            let new_rule = make_default_rule(input_layer_id, output_layer_id);
             let new_idx = project.automap_config.rule_sets[rs_idx].rules.len();
             project.automap_config.rule_sets[rs_idx].rules.push(new_rule);
             editor_state.automap_editor_state.selected_rule = Some(new_idx);
@@ -700,7 +714,8 @@ fn render_input_pattern_tab(
 ) {
     // Grid size controls.
     // The input group is the first one on the rule; we create it if missing.
-    ensure_input_group(project, rs_idx, r_idx);
+    let input_layer_id = editor_state.automap_editor_state.selected_input_layer.unwrap_or(Uuid::nil());
+    ensure_input_group(project, rs_idx, r_idx, input_layer_id);
 
     let (half_w, half_h) = {
         let group = &project.automap_config.rule_sets[rs_idx].rules[r_idx].input_groups[0];
@@ -931,6 +946,8 @@ fn render_output_patterns_tab(
     rs_idx: usize,
     r_idx: usize,
 ) {
+    let output_layer_id = editor_state.automap_editor_state.selected_output_layer.unwrap_or(Uuid::nil());
+
     // Ensure at least one output alternative exists.
     if project.automap_config.rule_sets[rs_idx].rules[r_idx]
         .output_alternatives
@@ -940,7 +957,7 @@ fn render_output_patterns_tab(
         let cell_count = ((2 * hw + 1) * (2 * hh + 1)) as usize;
         project.automap_config.rule_sets[rs_idx].rules[r_idx]
             .output_alternatives
-            .push(make_default_output_alt(hw, hh, cell_count));
+            .push(make_default_output_alt(hw, hh, cell_count, output_layer_id));
         project.mark_dirty();
     }
 
@@ -951,7 +968,7 @@ fn render_output_patterns_tab(
         let cell_count = ((2 * hw + 1) * (2 * hh + 1)) as usize;
         project.automap_config.rule_sets[rs_idx].rules[r_idx]
             .output_alternatives
-            .push(make_default_output_alt(hw, hh, cell_count));
+            .push(make_default_output_alt(hw, hh, cell_count, output_layer_id));
         project.mark_dirty();
     }
 
@@ -1185,18 +1202,31 @@ fn render_layer_mapping_strip(
 
         let has_level = target_level_id.is_some() && !layers.is_empty();
 
+        // Resolve display names for the currently selected layers.
+        let current_input_id = editor_state.automap_editor_state.selected_input_layer;
+        let current_output_id = editor_state.automap_editor_state.selected_output_layer;
+
+        let input_name = current_input_id
+            .and_then(|id| layers.iter().find(|(lid, _)| *lid == id).map(|(_, n)| n.as_str()))
+            .unwrap_or("(none)");
+        let output_name = current_output_id
+            .and_then(|id| layers.iter().find(|(lid, _)| *lid == id).map(|(_, n)| n.as_str()))
+            .unwrap_or("(none)");
+
+        // Collect pending selections into locals, then apply after closures to satisfy borrow checker.
+        let mut pending_input: Option<Uuid> = None;
+        let mut pending_output: Option<Uuid> = None;
+
         // Input layer combo.
         ui.label("Input:");
-        let input_name = "(no level)";
         ui.add_enabled_ui(has_level, |ui| {
             egui::ComboBox::from_label("Input layer for automapping")
                 .selected_text(input_name)
                 .show_ui(ui, |ui| {
                     for (id, name) in &layers {
-                        if ui.selectable_label(false, name).clicked() {
-                            // TODO(barclay-merge): wire selected input layer into AutomapEditorState
-                            // once the input layer field is added.
-                            let _ = id;
+                        let selected = current_input_id == Some(*id);
+                        if ui.selectable_label(selected, name).clicked() {
+                            pending_input = Some(*id);
                         }
                     }
                 });
@@ -1206,19 +1236,26 @@ fn render_layer_mapping_strip(
 
         // Output layer combo.
         ui.label("Output:");
-        let output_name = "(no level)";
         ui.add_enabled_ui(has_level, |ui| {
             egui::ComboBox::from_label("Output layer for automapping")
                 .selected_text(output_name)
                 .show_ui(ui, |ui| {
                     for (id, name) in &layers {
-                        if ui.selectable_label(false, name).clicked() {
-                            // TODO(barclay-merge): wire selected output layer into AutomapEditorState.
-                            let _ = id;
+                        let selected = current_output_id == Some(*id);
+                        if ui.selectable_label(selected, name).clicked() {
+                            pending_output = Some(*id);
                         }
                     }
                 });
         });
+
+        // Apply pending selections now that all egui closures are done.
+        if let Some(id) = pending_input {
+            editor_state.automap_editor_state.selected_input_layer = Some(id);
+        }
+        if let Some(id) = pending_output {
+            editor_state.automap_editor_state.selected_output_layer = Some(id);
+        }
     });
 }
 
@@ -1226,32 +1263,33 @@ fn render_layer_mapping_strip(
 
 /// Create a default rule with a 3x3 input group (half_width=1, half_height=1)
 /// and one empty output alternative.
-fn make_default_rule() -> Rule {
+///
+/// `input_layer_id` and `output_layer_id` are the currently selected layer UUIDs
+/// from `AutomapEditorState`. Pass `Uuid::nil()` when no layer is selected.
+fn make_default_rule(input_layer_id: Uuid, output_layer_id: Uuid) -> Rule {
     let hw: u32 = 1;
     let hh: u32 = 1;
     let cell_count = ((2 * hw + 1) * (2 * hh + 1)) as usize;
-    // TODO(barclay-merge): replace Uuid::nil() with a real layer_id once the
-    // layer mapping UI is wired through AutomapEditorState.
     Rule {
         id: Uuid::new_v4(),
         name: "New Rule".to_string(),
         input_groups: vec![InputConditionGroup {
-            layer_id: Uuid::nil(),
+            layer_id: input_layer_id,
             half_width: hw,
             half_height: hh,
             matchers: vec![CellMatcher::Ignore; cell_count],
         }],
-        output_alternatives: vec![make_default_output_alt(hw, hh, cell_count)],
+        output_alternatives: vec![make_default_output_alt(hw, hh, cell_count, output_layer_id)],
         no_overlapping_output: false,
     }
 }
 
-fn make_default_output_alt(hw: u32, hh: u32, cell_count: usize) -> OutputAlternative {
-    // TODO(barclay-merge): replace Uuid::nil() with a real layer_id once the
-    // layer mapping UI is wired through AutomapEditorState.
+/// `layer_id` is the currently selected output layer UUID from `AutomapEditorState`.
+/// Pass `Uuid::nil()` when no layer is selected.
+fn make_default_output_alt(hw: u32, hh: u32, cell_count: usize, layer_id: Uuid) -> OutputAlternative {
     OutputAlternative {
         id: Uuid::new_v4(),
-        layer_id: Uuid::nil(),
+        layer_id,
         half_width: hw,
         half_height: hh,
         outputs: vec![CellOutput::Ignore; cell_count],
@@ -1260,7 +1298,10 @@ fn make_default_output_alt(hw: u32, hh: u32, cell_count: usize) -> OutputAlterna
 }
 
 /// Ensure the rule has at least one `InputConditionGroup` (creates a 3x3 default if missing).
-fn ensure_input_group(project: &mut Project, rs_idx: usize, r_idx: usize) {
+///
+/// `layer_id` is the currently selected input layer UUID from `AutomapEditorState`.
+/// Pass `Uuid::nil()` when no layer is selected.
+fn ensure_input_group(project: &mut Project, rs_idx: usize, r_idx: usize, layer_id: Uuid) {
     if project.automap_config.rule_sets[rs_idx].rules[r_idx]
         .input_groups
         .is_empty()
@@ -1271,7 +1312,7 @@ fn ensure_input_group(project: &mut Project, rs_idx: usize, r_idx: usize) {
         project.automap_config.rule_sets[rs_idx].rules[r_idx]
             .input_groups
             .push(InputConditionGroup {
-                layer_id: Uuid::nil(),
+                layer_id,
                 half_width: hw,
                 half_height: hh,
                 matchers: vec![CellMatcher::Ignore; cell_count],
