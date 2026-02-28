@@ -93,3 +93,29 @@ Three violations in one sprint (skipped review gate, direct file edit, delayed r
 Data attempted to spawn Geordi directly using a skill call, which failed. The user identified this and directed that Picard spawns all agents at sprint start. CLAUDE.md and `sr-software-engineer.md` were updated to reflect this. The system design question: should agent prompts explicitly prohibit spawning subagents, or is it sufficient to instruct only Picard on the correct protocol? Current approach: instruct both sides (Picard's protocol + Data's prohibition).
 
 ---
+
+## 2026-02-28 — Procedure Refactoring Session (CLOSED)
+
+### What Was Done
+
+This session introduced no code changes. It was a structural refactoring of the agent management system.
+
+**Changes shipped:**
+
+- **Quarters and PADD system:** Each crewmember now has a personal directory at `agents/quarters/CREW_NAME/` containing a `padd.md` (long-running personal notes) and numbered logs (session/sprint snapshots). All 9 PADDs were created and populated by the crew themselves.
+- **Context file relocation:** Agent context files moved from `.claude/agents/` to `agents/`. They are now writable by subagents and owned by Riker.
+- **Riker authority formalized:** Riker is now the sole author of `CLAUDE.md` and all `agents/*.md` context files. Picard no longer edits either.
+- **Architecture folder:** `agents/architecture/` created. `architecture.md` and `testing.md` moved there. Old locations replaced with redirect stubs.
+- **SE escalation path added:** SEs may now escalate "not clear enough" directly to Data. Data may authorize git reverts when confident; notifies Picard immediately.
+- **CLAUDE.md updated:** Quarters system, Riker's authority, SE escalation path, file path corrections, all 5 pending Riker proposals applied.
+- **V-008 logged:** Picard's use of `---` separators in Bash commands causing permission prompts. Riker to fix in next session.
+
+### Process Findings
+
+**Subagent sandbox restriction:** Spawned agents cannot write to `.claude/agents/`. This was discovered mid-session when Riker was blocked. Resolution: moved context files to `agents/` (fully writable). The root cause was an incorrect assumption that documented permissions would override the tool sandbox.
+
+**Two-step directory move:** Moving `.claude/agents` to `agents/` initially produced `agents/agents/` due to mv semantics when a target directory already exists. Caught immediately and corrected. No data loss.
+
+**System design question:** Should the spawn protocol in CLAUDE.md explicitly state that each SE should read `agents/software-engineer.md` (shared base) before their persona file? The SE persona files reference this but CLAUDE.md's startup sequence does not mention it.
+
+---

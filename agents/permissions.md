@@ -21,6 +21,7 @@ Each entry records: what is permitted, the scope/conditions, and when it was gra
 | 6 | Modify `#[cfg(test)]` blocks in existing source files | Toolbar tests, any panel under test — approved per task | Session 1 |
 
 | 7 | Add `wgpu` feature to `egui_kittest` dev-dep | One-time grant for Phase 3 snapshot tests | Session 2 (Phase 3 sprint directive) |
+| 8 | Write to `.claude/agents/*.md` context files | Riker only, for context file and quarters system management | Session 3 (user directive: Riker manages all context files) |
 
 ## Pending / Not Yet Granted
 
