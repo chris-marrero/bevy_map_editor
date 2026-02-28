@@ -1,0 +1,22 @@
+[package]
+name = "bevy_map_automap"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+description = "Rule-based automapping engine for bevy_map_editor"
+keywords = ["bevy", "tilemap", "automapping", "rules", "procedural"]
+categories = ["game-development"]
+
+[dependencies]
+bevy_map_core = { workspace = true }
+serde = { workspace = true }
+uuid = { workspace = true }
+rand = { version = "0.8", features = ["small_rng"] }
+
+[features]
+default = []
+
+[lints]
+workspace = true
