@@ -11,30 +11,40 @@ Three open PRs in sequence. **Do not review PR #2 until PR #3 merges.**
 | PR | Branch | Assignee | Status | Action |
 |---|---|---|---|---|
 | #1 | `sprint/automapping/geordi-engine` | Geordi | **GO given — MERGED** | Done. New DEBT entry added: `no_overlapping_output` center-cell-only tracking. |
-| #3 | `sprint/automapping/barclay-integration` | Barclay | **RETURNED — awaiting T-11 fix** | `find_layer_index` stub not resolved. T-11 assigned. Re-review after Barclay pushes fix. |
-| #2 | `sprint/automapping/wesley-ui` | Wesley | Waiting for #3 merge | Will rebase on updated main after #3 merges; then review |
+| #3 | `sprint/automapping/barclay-integration` | Barclay | **GO ON CONTENT — awaiting rebase+merge** | T-11 fix (ada4a38) reviewed and correct. Cross-branch contamination issue analyzed (see below). Requires rebase onto main + force-push + GitHub PR creation + merge. T-16 created for Picard to obtain authorization. |
+| #2 | `sprint/automapping/wesley-ui` | Wesley | Waiting for #3 merge | Will rebase on updated main after #3 merges; then review. T-12 DEBT entries now in place — GO can be issued on PR #2 content once Wesley rebases. Note: T-17 (layer combo wiring) must be included in PR #2 or a follow-on PR. |
 
-**Merge order is critical.** PR #3 still must merge before PR #2 is reviewed. Do not review PR #3 again until T-11 is marked done by Barclay.
+**Merge order is critical.** PR #3 still must merge before PR #2.
 
-**Cross-branch contamination alert (Remmick audit finding):** `origin/sprint/automapping/barclay-integration` contains Geordi's engine commit (`942ff8a`) as a base commit — same content as `7768402` on Geordi's branch, different hash. If PR #3 is merged as-is, the engine crate lands on main via Barclay's history, not Geordi's. PR #1 will then conflict or create duplicate history. Resolve this before merging PR #3: options are (a) rebase Barclay's branch onto main after squashing/excluding the engine commit, or (b) merge PR #1 first so the engine crate arrives cleanly, then rebase Barclay's branch onto that updated main. Decide and act before issuing GO on PR #3.
+**Cross-branch contamination — ANALYZED (2026-02-28):**
+- Merge base of `sprint/automapping/barclay-integration` and `origin/main` is `f16e549` (pre-engine-crate)
+- `942ff8a` (Barclay's copy of engine crate) is in Barclay's branch history; `7768402` (Geordi's copy) is already in main via `1c803e5`
+- The two engine commits have IDENTICAL content (diff is empty — confirmed)
+- A `--merge` PR merge would bring `942ff8a` into main's history via Barclay's lineage — confusing double-history
+- **Resolution: rebase Barclay's branch onto current main.** Git's patch-id mechanism will skip `942ff8a` (identical to `7768402` already in main). Result: 6 Barclay-only commits cleanly on top of current main
+- Requires: push authorization (T-16, assigned to lead)
+- Note: No GitHub PR currently exists for Barclay's branch — user may need to `gh pr create` first
 
 ---
 
 ## Active DEBT Items
 
-From `agents/architecture.md` DEBT table. These are live in current code.
+From `agents/architecture/architecture.md` DEBT table. These are live in current code.
 
 ### High Priority (Functional Impact)
 
-- **`find_layer_index` stub in `bevy_map_automap/src/apply.rs`**: Returns permanent `None`. **Blocks:** Every automap rule that targets a named layer silently writes to nowhere; output groups and alternatives that specify `layer_id` are fully ignored at apply time. **Unblock trigger:** When PR #3 merges (`Layer::id` added to core). **Action:** This must be the first fix after #3 merges — delay means silently broken automap in user projects.
+- **[T-12/T-13] Layer combo wiring stubs in `automap_editor.rs`** (Wesley, 5 locations):
+  - Lines 1199, 1217: `let _ = id;` — user combo selections silently discarded
+  - Lines 1239, 1254, 1274: `Uuid::nil()` — new rules/output-alts always target no real layer
+  - **In-scope for this sprint** (T-13 determination, 2026-02-28). T-17 created for Wesley.
+  - All five instances documented in DEBT table.
 
 ### Medium Priority (Architectural)
 
-- **Layer mapping persistence not implemented**: `automap_config` is loaded/saved, but the layer index mappings for output groups are not persisted. Not yet confirmed scope. **Trigger:** Confirm with Picard whether this is in-scope before automapping sprint closes.
+- **`apply_automap_config` O(rules × width × height) complexity**: Acceptable now; may lag on large levels (256×256+). Monitor and revisit if user reports lag.
 
 ### Low Priority (Cosmetic/Optimization)
 
-- **`apply_automap_config` O(rules × width × height) complexity**: Acceptable now; may lag on large levels (256×256+). Monitor and revisit if user reports lag.
 - **Magic constant `0.01` in `drag_stopped()`**: Collision drag-commit threshold. Extract to named const if ever tuned.
 - **`format!("{:?}", one_way)` in CollisionProperties**: Exposes Rust debug format (`Top` instead of "Top (Pass from below)"). Cosmetic; address during next UX polish pass.
 - **Canvas drag untestable with `egui_kittest`**: `handle_collision_canvas_input` canvas region has no AccessKit node. Testability decision deferred; documented in `agents/architecture/testing.md`.
@@ -93,4 +103,6 @@ An implementation with undocumented stubs does not pass review.
 ## Watch Items
 
 - **Automapping sprint tests**: Blocked on PR #3 merge. Worf has test plan (in `agents/architecture/testing.md`); ready to write tests immediately after Barclay's integration work is approved and merged.
+- **T-16 (lead)**: Authorization to rebase + force-push Barclay's branch. No push permission currently granted. Until this is resolved, PR #3 cannot merge.
+- **T-17 (Wesley)**: Layer combo wiring — blocked on PR #3 merge. Must be in PR #2 scope or separate PR. Data must review Wesley's wiring proposal before coding.
 - **Session state timestamp**: Last updated 2026-02-28. This PADD should be updated whenever review decisions are made or PRs change status.
