@@ -31,6 +31,7 @@ _(none)_
 | T-11 | barclay | DONE | Fix `find_layer_index` in `crates/bevy_map_automap/src/apply.rs`. Implemented correctly; `cargo check` passes. Pending push to `sprint/automapping/barclay-integration` (awaiting user authorization). |
 | T-12 | data | PENDING | Add four missing DEBT table entries from Wesley's `automap_editor.rs` (found by Remmick audit). Layer combo selection discards `id` with `let _ = id;` (lines ~1197, ~1216). `make_default_rule()` and `make_default_output_alt()` use `Uuid::nil()` as placeholder `layer_id` (lines ~1233, ~1250). All four are functional voids — user selections silently dropped, rules always created with nil layer ID. Must be in DEBT table before Data can legally issue GO on PR #2. |
 | T-13 | data | PENDING | Confirm scope of layer mapping persistence debt before sprint close. Known: rules reference layer IDs in the UI but serialization of layer-to-rule associations in the editor is not wired. Determine: is this in-scope for this sprint or deferred? Add DEBT table entry once scope is confirmed. |
+| T-14 | riker | DONE | Update CLAUDE.md to establish standing procedure: agent knowledge base files committed to main after every session where agent files are modified. Section "Agent Knowledge Base: Session Commit Procedure" added to CLAUDE.md. remmick.md ratified (YAML frontmatter stripped to match project conventions). Committed and pushed to main. |
 
 ### Blocked
 

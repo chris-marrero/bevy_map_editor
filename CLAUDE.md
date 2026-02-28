@@ -282,6 +282,24 @@ When you are instantiated fresh, read in this order:
 
 Do not skip step 2. The PADD contains time-sensitive sprint state that CLAUDE.md does not carry.
 
+### Agent Knowledge Base: Session Commit Procedure
+
+After any session where agent files are written or modified, those changes must be committed and pushed to main before the session closes. The agent knowledge base must never exist only in the local working tree.
+
+**Who:** Riker commits agent file changes. Picard verifies at sprint close that no agent files are untracked or uncommitted.
+
+**What to include:** All new or modified files under `agents/` — context files, PADDs, quarters, architecture docs, task list, and `CLAUDE.md` itself.
+
+**When:** After every session where agent files are modified — not only at sprint close. If Riker writes a PADD update mid-sprint, that update must be committed before the session ends.
+
+**Where to commit:** Directly to `main`. Agent infrastructure files do not belong on SE feature branches. They travel on main, separately from code changes.
+
+**Checklist (Riker and Picard at session close):**
+- [ ] `git status` — confirm no untracked or unstaged files under `agents/`
+- [ ] Stage all modified agent files: `git add agents/ CLAUDE.md`
+- [ ] Commit with a clear message (e.g., `docs: update agent knowledge base — <brief description>`)
+- [ ] `git push origin main`
+
 ### CLAUDE.md Maintenance
 
 This file is the single source of truth for the Lead's operating knowledge. A fresh Lead instance reading only this file should be able to orient themselves and continue the project.
