@@ -391,18 +391,8 @@ fn select_output_alternative(alts: &[OutputAlternative], rng: &mut impl Rng) -> 
 
 /// Look up the index of a layer by its UUID in `level.layers`.
 /// Returns `None` if no layer with that ID exists.
-///
-/// # Implementation note
-///
-/// This function requires `Layer::id: Uuid`, which is added to `bevy_map_core` in the
-/// Barclay (Track B) integration branch. The match below will be updated to `l.id ==
-/// layer_id` once that branch is merged into the base. Until then, the function returns
-/// `None` for all inputs (safe — rules whose layer IDs cannot be resolved are skipped).
 fn find_layer_index(level: &Level, layer_id: Uuid) -> Option<usize> {
-    // FIXME(barclay-merge): replace with `level.layers.iter().position(|l| l.id == layer_id)`
-    // once Layer::id is available from bevy_map_core (Track B integration branch).
-    let _ = (level, layer_id);
-    None
+    level.layers.iter().position(|l| l.id == layer_id)
 }
 
 // ─── Tests ───────────────────────────────────────────────────────────────────
