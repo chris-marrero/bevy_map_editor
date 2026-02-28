@@ -65,6 +65,14 @@ pub fn toggle_flip_y(tile: u32) -> u32 {
 /// A layer (tiles or objects)
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Layer {
+    /// Stable unique identifier for this layer.
+    ///
+    /// Used by the automapping engine to reference layers in input condition groups
+    /// and output alternatives. Assigned on construction; preserved through save/load.
+    /// On deserialization of legacy data that lacks an `id` field, `serde` calls
+    /// `Uuid::new_v4()` to generate a fresh identifier.
+    #[serde(default = "Uuid::new_v4")]
+    pub id: Uuid,
     pub name: String,
     pub visible: bool,
     #[serde(default = "default_opacity")]
@@ -81,6 +89,7 @@ impl Layer {
     pub fn new_tile_layer(name: String, tileset_id: Uuid, width: u32, height: u32) -> Self {
         let size = (width * height) as usize;
         Self {
+            id: Uuid::new_v4(),
             name,
             visible: true,
             opacity: 1.0,
@@ -95,6 +104,7 @@ impl Layer {
     /// Create a new object layer
     pub fn new_object_layer(name: String) -> Self {
         Self {
+            id: Uuid::new_v4(),
             name,
             visible: true,
             opacity: 1.0,

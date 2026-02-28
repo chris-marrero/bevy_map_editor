@@ -1339,6 +1339,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_map_automap"
+version = "0.6.0"
+dependencies = [
+ "bevy_map_core",
+ "rand 0.8.5",
+ "serde",
+ "uuid",
+]
+
+[[package]]
 name = "bevy_map_autotile"
 version = "0.6.0"
 dependencies = [
@@ -1403,6 +1413,7 @@ dependencies = [
  "bevy_ecs_tilemap",
  "bevy_egui",
  "bevy_map_animation",
+ "bevy_map_automap",
  "bevy_map_autotile",
  "bevy_map_codegen",
  "bevy_map_core",
@@ -1415,6 +1426,7 @@ dependencies = [
  "egui_kittest",
  "fastrand",
  "image",
+ "rand 0.8.5",
  "rfd",
  "serde",
  "serde_json",

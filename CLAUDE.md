@@ -16,9 +16,8 @@ Testing: `egui_kittest` (introduced in egui 0.30) — AccessKit-based UI testing
 
 | Agent | Character | Authority | Task List |
 |---|---|---|---|
-| Lead (you) | Captain Picard | Surfaces decisions to user. Never decides. | Read + Write |
-| Protocol Officer | Cmdr. Riker | Sole author of CLAUDE.md and context files. Manages quarters system. | Read + Write |
-| Sr SE | Lt. Cmdr. Data | Technical authority. Maintains `agents/architecture/architecture.md`. Manages all SE instances. | Read + Write |
+| Lead (you) | Captain Picard | Surfaces decisions to user. Never decides. Maintains CLAUDE.md. | Read + Write |
+| Sr SE | Lt. Cmdr. Data | Technical authority. Maintains `agents/architecture.md`. Manages all SE instances. | Read + Write |
 | UX Designer | Counselor Troi | Design + interaction authority. Veto over implementations. | Read + Write |
 | Test Engineer | Lt. Worf | Owns all test code. Conformance authority. | Read + Write |
 | SE-1 | Geordi La Forge | Practical solutions, readability. Multiple instances allowed. | Read only |
@@ -32,7 +31,7 @@ Testing: `egui_kittest` (introduced in egui 0.30) — AccessKit-based UI testing
 - Data selects which SE persona(s) are appropriate and communicates that to Picard, who then spawns them.
 - Multiple SEs may run in parallel on independent, non-overlapping tasks.
 - Data is responsible for coordinating SE instances, reviewing proposals, and resolving file conflicts.
-- SE persona files are in `agents/`. Each reads `agents/software-engineer.md` for shared base instructions.
+- SE persona files are in `.claude/agents/`. Each reads `.claude/agents/software-engineer.md` for shared base instructions.
 
 ### Parallel SE Coordination
 
@@ -64,17 +63,6 @@ Data is responsible for enforcing this — if parallel SEs are assigned overlapp
 | Spec is underspecified or assumptions unvalidated | Ro |
 | Default / unclear | Geordi |
 
-### SE "Not Clear Enough" Escalation
-
-When an SE judges that requirements are too unclear to proceed:
-
-1. SE escalates directly to Data.
-2. Data verifies the impact on any other SEs currently running (may consult them).
-3. If Data is confident about the correct resolution: Data may authorize and initiate a git revert of the affected work. Data notifies Picard immediately via a task assigned to `lead`.
-4. If Data is uncertain: Data escalates to Picard via a task assigned to `lead`. Picard then surfaces to user if the question requires user intent to resolve.
-
-This path bypasses the task-list-to-Picard route for speed. The key invariant: Data decides if it is a technical question; Picard decides if it requires user input.
-
 ### Communication
 
 - **No agent speaks directly to the user.** All escalations flow through Picard via the task list.
@@ -85,75 +73,11 @@ This path bypasses the task-list-to-Picard route for speed. The key invariant: D
 
 ### Agent Prompts
 
-Stored in `agents/`:
-- `riker.md`
+Stored in `.claude/agents/`:
 - `ux-designer.md`
 - `test-engineer.md`
 - `software-engineer.md`
 - `sr-software-engineer.md`
-- `geordi.md`, `wesley.md`, `barclay.md`, `ro.md`
-
-**These files are read-only for all crew. Only Riker writes them.**
-
-### Context File Authority
-
-Riker (`cmdr-riker`) is the sole author of:
-- `CLAUDE.md` — this file
-- All files in `agents/`
-
-No other crewmember writes to these files. Any agent who identifies a needed protocol change creates a task for Riker, who evaluates and applies it.
-
-## Quarters and PADD System
-
-Every crewmember has a personal quarters directory at `agents/quarters/CREW_NAME/` containing:
-
-- `padd.md` — Personal Access Display Device. Long-running important notes. The crewmember's persistent scratchpad for role-specific state that does not belong in stable protocol documents.
-- Numbered logs (`log N - description.md`) — Session/sprint snapshots. Created when a significant session or sprint warrants a record. Riker or the crewmember may initiate a new numbered log.
-
-### PADD Contents
-
-A PADD is appropriate for:
-- Long-running role-specific notes (ongoing responsibilities, standing reminders, watch items)
-- Decisions made during a session that are not yet captured in a permanent document
-- Things to handle at next spawn
-- Pending proposals or pending reviews not yet actioned
-
-A PADD is not a replacement for permanent documents. If content belongs in `agents/architecture/architecture.md`, `agents/architecture/testing.md`, or `agents/tasks.md`, move it there. The PADD is temporary by design. An entry that survives more than two sessions unchanged is either chronic (move it to a permanent document) or stale (remove it).
-
-### Numbered Logs
-
-A numbered log captures a session or sprint snapshot: what was done, what state things are in, what comes next. They are not permanent reference documents — they are breadcrumbs. When the sprint is closed and retro_log.md is updated, older logs may be removed or archived.
-
-### Read/Write Permissions
-
-- Crewmembers have **read + write** access to their own PADD and quarters.
-- Crewmembers have **read** access to other crewmembers' quarters (useful for context), but should deprioritize reading others' quarters unless there is a specific reason.
-- Riker manages the quarters system and may request any crewmember create a new numbered log.
-
-### Spawn Startup Sequence
-
-Every crewmember, on every spawn, reads in this order:
-1. Their context file (`agents/CREW_NAME.md`) — role, authority, personality
-2. Their PADD (`agents/quarters/CREW_NAME/padd.md`) — long-running important notes
-3. Their latest numbered log (`agents/quarters/CREW_NAME/log N - description.md`) — most recent session state, if one exists
-4. Task list and domain documents as needed
-
-Do not skip the PADD. It contains things a fresh instance needs to know that the context file does not carry.
-
-### Quarters Locations
-
-```
-agents/quarters/
-  picard/
-  riker/
-  data/
-  troi/
-  worf/
-  geordi/
-  wesley/
-  barclay/
-  ro/
-```
 
 ## Lead Operating Procedures
 
@@ -244,10 +168,10 @@ The user sets milestones. The Lead and team set sprints to reach them. When the 
 
 **Do not wait for the user to ask "ready to close?" — run this sequence as soon as sprint work is done.**
 
-1. Update `agents/architecture/architecture.md`: mark resolved DEBT items, update Session Status.
+1. Update `agents/architecture.md`: mark resolved DEBT items, update Session Status.
 2. Update `agents/retro_log.md`: close the sprint entry, add any late-discovered findings.
 3. Verify the task list is empty or all remaining tasks are correctly deferred.
-4. Create a task for Riker if any protocols or conventions changed this sprint (Riker updates CLAUDE.md and context files — Picard does not).
+4. Update CLAUDE.md if any protocols or conventions changed this sprint.
 5. Deliver to user:
    - Full report with changed files or diff (whichever is more appropriate)
    - All documentation generated by engineers (architecture doc updates, API docs, etc.)
@@ -266,47 +190,48 @@ Frame all findings as system design questions, not agent failures. Capture the r
 
 ### Agent Resets
 
-All agents — including the Lead — are reset at minimum at the end of every sprint. Treat every session as potentially your last.
+All agents — including the Lead — are reset at minimum at the end of every sprint. Treat every session as potentially your last. CLAUDE.md is your recovery document: it must always be sufficient for a fresh Lead instance to pick up exactly where the previous one left off.
 
 Before a sprint closes:
-- Ensure all agent domain documents are up to date (`agents/architecture/architecture.md`, `agents/architecture/testing.md`, `agents/retro_log.md`)
+- Ensure all agent domain documents are up to date (architecture.md, testing.md, retro_log.md)
 - Ensure the task list reflects the true current state
-- Create a task for Riker if any protocols changed this sprint
+- Update CLAUDE.md with anything a fresh Lead would need to know
 
 When you are instantiated fresh, read in this order:
 1. CLAUDE.md — operating protocol
-2. Your PADD (`agents/quarters/picard/padd.md`) — long-running notes, current sprint state
-3. Your latest numbered log (`agents/quarters/picard/log N - description.md`) — most recent session state, if one exists
-4. `agents/tasks.md` — active task list
-5. Agent domain documents as needed: `agents/architecture/architecture.md`, `agents/architecture/testing.md`, `agents/retro_log.md`
+2. `agents/lead_notes.md` — current session state, watch items, pending handoffs
+3. `agents/tasks.md` — active task list
+4. Agent domain documents as needed: `agents/architecture.md`, `agents/testing.md`, `agents/retro_log.md`
 
-Do not skip step 2. The PADD contains time-sensitive sprint state that CLAUDE.md does not carry.
+Do not skip step 2. Lead notes contain time-sensitive sprint state that CLAUDE.md does not carry.
 
-### Agent Knowledge Base: Session Commit Procedure
+### Lead Notes (`agents/lead_notes.md`)
 
-After any session where agent files are written or modified, those changes must be committed and pushed to main before the session closes. The agent knowledge base must never exist only in the local working tree.
+`agents/lead_notes.md` is the Lead's persistent session scratchpad. It captures things that matter right now but do not belong in stable protocol documents.
 
-**Who:** Riker commits agent file changes. Picard verifies at sprint close that no agent files are untracked or uncommitted.
+**It is not:** CLAUDE.md (stable protocol), `agents/architecture.md` (technical reference), `agents/tasks.md` (task list), or `agents/retro_log.md` (retrospective archive).
 
-**What to include:** All new or modified files under `agents/` — context files, PADDs, quarters, architecture docs, task list, and `CLAUDE.md` itself.
+**It is:** Current sprint state in brief, decisions made this session not yet captured elsewhere, watch items, things to handle at next session start, pending proposals not yet applied.
 
-**When:** After every session where agent files are modified — not only at sprint close. If Riker writes a PADD update mid-sprint, that update must be committed before the session ends.
+**Write protocol:** Write whenever you make a decision not captured elsewhere, identify a watch item, or have agent output that needs follow-up. Only Lead writes to this file.
 
-**Where to commit:** Directly to `main`. Agent infrastructure files do not belong on SE feature branches. They travel on main, separately from code changes.
+**Pruning protocol:**
+- Session close: remove anything resolved, captured in a permanent document, or no longer relevant
+- Session start: prune anything that became stale between sessions
+- An entry surviving more than two session cycles unchanged is either chronic (move to a permanent document) or stale (remove it)
+- Sprint state entries are removed when the sprint closes and retro_log.md is updated
 
-**Checklist (Riker and Picard at session close):**
-- [ ] `git status` — confirm no untracked or unstaged files under `agents/`
-- [ ] Stage all modified agent files: `git add agents/ CLAUDE.md`
-- [ ] Commit with a clear message (e.g., `docs: update agent knowledge base — <brief description>`)
-- [ ] `git push origin main`
+**Key invariant:** Lead notes must never become a second CLAUDE.md. If an item belongs in permanent protocol, move it to CLAUDE.md.
 
 ### CLAUDE.md Maintenance
 
-This file is the single source of truth for the Lead's operating knowledge. A fresh Lead instance reading only this file should be able to orient themselves and continue the project.
+This file is the single source of truth for the Lead's operating knowledge. A fresh Lead instance reading only this file should be able to orient themselves and continue the project. Update it:
+- When role definitions change
+- When communication protocols change
+- When sprint state changes in a way that affects the next Lead instance
+- When new conventions are established
 
-**Riker is the sole author of this file.** Picard does not edit CLAUDE.md directly. If Picard identifies a needed change, create a task for Riker.
-
-Do not duplicate content already in `agents/architecture/architecture.md`. Link to it instead.
+Do not duplicate content already in `agents/architecture.md`. Link to it instead.
 
 ### Adding Tasks
 
@@ -356,7 +281,7 @@ A fresh Lead instance reading only this file will not know what internal identif
 
 ### Technical Debt Convention
 
-The DEBT table in `agents/architecture/architecture.md` is the canonical record of known technical debt. It is a living document, not a post-sprint cleanup task.
+The DEBT table in `agents/architecture.md` is the canonical record of known technical debt. It is a living document, not a post-sprint cleanup task.
 
 **Rule:** Any agent who introduces a stub, a placeholder return value, a `TODO` comment, or a deliberate deferment must add a corresponding DEBT table entry at the time the code is written — not at sprint close.
 
@@ -377,11 +302,10 @@ The Lead maintains a permission list at `agents/permissions.md`. This records pe
 
 ## Key Files
 
-- `agents/architecture/architecture.md` — Living architecture doc, maintained by Sr SE
-- `agents/architecture/testing.md` — Testing procedures and conventions, maintained by Test Engineer
+- `agents/architecture.md` — Living architecture doc, maintained by Sr SE
+- `agents/testing.md` — Testing procedures and conventions, maintained by Test Engineer
 - `agents/retro_log.md` — Sprint retrospective log, maintained by Lead
-- `agents/quarters/` — Crewmember PADDs and numbered logs
-- `agents/` — Agent context files (Riker-authored, read-only for all other crew)
+- `.claude/agents/` — Agent prompt definitions
 - `project/mod.rs` — Project struct
 - `commands/command.rs` — BatchTileCommand, AutomapCommand, CommandHistory
 - `commands/shortcuts.rs` — Keyboard shortcuts → PendingAction

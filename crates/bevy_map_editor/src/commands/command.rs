@@ -134,6 +134,96 @@ pub fn collect_tiles_in_region(
     tiles
 }
 
+/// Command for tile changes produced by running automap rules.
+///
+/// Covers potentially many layers in one undoable operation. Each entry in
+/// `layer_changes` maps a layer index to a per-cell change map:
+/// `(x, y) -> (old_tile, new_tile)`.
+///
+/// # Invariants
+///
+/// - `execute` and `undo` are pure: they operate only on `&mut Project` and
+///   `&mut RenderState`, with no Bevy API calls.
+/// - A layer index that does not exist on the level is silently skipped.
+///   This matches `BatchTileCommand`'s defensive behaviour.
+/// - Cells whose coordinates are out of bounds for the level are silently
+///   skipped. This guards against stale commands after a level resize.
+pub struct AutomapCommand {
+    pub level_id: Uuid,
+    /// Per-layer cell changes: layer_index -> { (x, y) -> (old_tile, new_tile) }
+    pub layer_changes: HashMap<usize, HashMap<(u32, u32), (Option<u32>, Option<u32>)>>,
+    description: String,
+}
+
+impl AutomapCommand {
+    /// Create a new automap command.
+    ///
+    /// `description` is the human-readable undo label shown in the Edit menu.
+    pub fn new(
+        level_id: Uuid,
+        layer_changes: HashMap<usize, HashMap<(u32, u32), (Option<u32>, Option<u32>)>>,
+        description: impl Into<String>,
+    ) -> Self {
+        Self {
+            level_id,
+            layer_changes,
+            description: description.into(),
+        }
+    }
+
+    /// Returns `true` if there are no cell changes recorded.
+    ///
+    /// A command with no changes is still valid to push to history but will
+    /// have no visible effect. Callers may wish to skip pushing it.
+    pub fn is_empty(&self) -> bool {
+        self.layer_changes.values().all(|cells| cells.is_empty())
+    }
+}
+
+impl Command for AutomapCommand {
+    fn execute(&self, project: &mut Project, render_state: &mut RenderState) {
+        if let Some(level) = project.get_level_mut(self.level_id) {
+            let level_width = level.width;
+            for (layer_idx, cell_changes) in &self.layer_changes {
+                if let Some(layer) = level.layers.get_mut(*layer_idx) {
+                    if let LayerData::Tiles { tiles, .. } = &mut layer.data {
+                        for ((x, y), (_, new_tile)) in cell_changes {
+                            let idx = (*y * level_width + *x) as usize;
+                            if idx < tiles.len() {
+                                tiles[idx] = *new_tile;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        render_state.needs_rebuild = true;
+    }
+
+    fn undo(&self, project: &mut Project, render_state: &mut RenderState) {
+        if let Some(level) = project.get_level_mut(self.level_id) {
+            let level_width = level.width;
+            for (layer_idx, cell_changes) in &self.layer_changes {
+                if let Some(layer) = level.layers.get_mut(*layer_idx) {
+                    if let LayerData::Tiles { tiles, .. } = &mut layer.data {
+                        for ((x, y), (old_tile, _)) in cell_changes {
+                            let idx = (*y * level_width + *x) as usize;
+                            if idx < tiles.len() {
+                                tiles[idx] = *old_tile;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        render_state.needs_rebuild = true;
+    }
+
+    fn description(&self) -> &str {
+        &self.description
+    }
+}
+
 /// Command for moving an entity to a new position
 pub struct MoveEntityCommand {
     pub level_id: Uuid,

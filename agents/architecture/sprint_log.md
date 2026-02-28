@@ -1,114 +1,10 @@
-# bevy_map_editor — Architecture Reference
+# bevy_map_editor — Sprint Architecture Log
 
-Maintained by the Sr Software Engineer. Updated whenever a significant pattern is introduced or changed. A fresh agent instance should be able to orient themselves from this document alone.
+This file is an archive of sprint-scoped architecture decisions, design assessments, code
+reviews, and SE assignment notes that have been resolved or superseded. Content is moved
+here from `agents/architecture.md` when it is no longer needed for day-to-day orientation.
 
----
-
-## Stack
-
-| Component | Version |
-|---|---|
-| Bevy | 0.18 |
-| bevy_egui | 0.39.0 |
-| egui (resolved) | 0.33.3 |
-| egui-async | 0.3.4 |
-| Rust edition | 2021 |
-| MSRV | 1.76.0 |
-
----
-
-## Crate Layout
-
-```
-crates/
-  bevy_map_core/        — shared types (tilesets, levels, entities, schema)
-  bevy_map_autotile/    — Wang tile / 47-tile blob autotiling logic
-  bevy_map_automap/     — rule-based automapping
-  bevy_map_animation/   — animation data types
-  bevy_map_dialogue/    — dialogue tree data
-  bevy_map_schema/      — runtime data schema
-  bevy_map_codegen/     — code generation from schema
-  bevy_map_runtime/     — optional runtime crate (feature-gated)
-  bevy_map_integration/ — plugin/extension API for third-party game projects
-  bevy_map_editor/      — the editor binary and UI crate (this is the primary concern)
-```
-
----
-
-## Editor State Model
-
-### EditorState (Resource)
-
-`EditorState` is the primary mutable resource. It lives in `crates/bevy_map_editor/src/lib.rs` (line 518). It carries:
-
-- Tool selection: `current_tool: EditorTool`, `tool_mode: ToolMode`
-- View state: `view_mode: EditorViewMode`, `zoom`, `camera_offset`, `show_grid`, `show_collisions`
-- Dialog visibility flags: `show_new_level_dialog`, `show_settings_dialog`, etc.
-- **Pending action dispatch**: `pending_action: Option<PendingAction>`
-
-The `pending_action` field is the central dispatch mechanism. Menu items and toolbar buttons do not execute actions directly — they set `pending_action`, which is then processed by `process_edit_actions()` in `ui/mod.rs`.
-
-### PendingAction (enum)
-
-Defined in `crates/bevy_map_editor/src/ui/dialogs.rs`. All menu-triggered operations (New, Open, Save, Undo, Redo, Cut, Copy, Paste, RunGame, ApplyAutomap, etc.) are variants of this enum.
-
-### UiState (Resource)
-
-Defined in `ui/mod.rs`. Tracks panel visibility (`show_tree_view`, `show_inspector`, `show_asset_browser`), panel sizes, and which integration panels are visible.
-
----
-
-## UI Architecture
-
-### System Schedule
-
-UI rendering runs in `EguiPrimaryContextPass` (the bevy_egui schedule for the primary window context). The render system is `render_ui`.
-
-Non-rendering systems run in `Update`:
-- `load_tileset_textures` — polls Bevy's AssetServer and registers loaded images with egui
-- `load_spritesheet_textures` — same for spritesheets
-- `load_entity_textures` — same for entity icons/sprites
-- `process_edit_actions` — dispatches `EditorState::pending_action`
-
-### UI Module Structure
-
-`crates/bevy_map_editor/src/ui/mod.rs` declares all submodules. Each panel is a standalone function:
-
-| File | Entry point | Primary inputs |
-|---|---|---|
-| `toolbar.rs` | `render_toolbar(ctx, editor_state, integration_registry)` | `&mut EditorState` |
-| `menu_bar.rs` | `render_menu_bar(ctx, ui_state, editor_state, project, history, clipboard, preferences, integration_registry)` | `&mut EditorState`, `&mut Project` |
-| `tileset_editor.rs` | `render_tileset_editor(...)` | `TilesetEditorState`, `&mut Project` |
-| `automap_editor.rs` | `render_automap_editor(...)` | `&mut Project` |
-| `inspector.rs` | `render_inspector(...)` | `Selection`, `&mut Project` |
-| `tree_view.rs` | `render_tree_view(...)` | `&mut EditorState`, `&mut Project` |
-| `asset_browser.rs` | `render_asset_browser(...)` | `&mut AssetBrowserState` |
-
-### Panel Render Signature Pattern
-
-All top-level panel functions accept `&egui::Context` as their first argument and return either `()` or a result struct (e.g., `AnimationEditorResult`, `AssetBrowserResult`, `TreeViewResult`). This is the established pattern — do not deviate.
-
-### Borrow Checker Pattern for Nested Project Data
-
-When egui closures need both `&mut project.some_subsystem[i]` and `&mut project` at the same time (e.g., in the automap editor), use `macro_rules!` to re-borrow the nested path on each access rather than holding a `&mut` reference across closure boundaries. Clone data before rendering a grid, apply changes after the closure exits. Never hold `&mut rule` or `&mut tileset` across an egui closure that also needs `project`.
-
----
-
-## Command / Undo System
-
-Defined in `crates/bevy_map_editor/src/commands/`.
-
-- `Command` trait: `fn execute(&mut self, project: &mut Project)`, `fn undo(&mut self, project: &mut Project)`, `fn description(&self) -> &str`
-- `CommandHistory`: wraps a stack, exposes `can_undo()`, `can_redo()`, `push()`, `undo()`, `redo()`
-- Concrete commands: `BatchTileCommand`, `AutomapCommand`, `MoveEntityCommand`
-
-Undo/Redo are dispatched through `PendingAction::Undo` / `PendingAction::Redo` and resolved in `process_edit_actions()`.
-
----
-
-## Integration / Plugin API
-
-See `crates/bevy_map_integration/`. Plugins drop a `.toml` file into `~/Library/Application Support/bevy_map_editor/plugins/` on macOS. The `IntegrationRegistry` resource tracks all loaded extensions. UI contributions are `EditorExtension` variants: `ToolbarButton`, `Panel`, `MenuItem`. These are rendered in `toolbar.rs` and `menu_bar.rs` by iterating `registry.ui_contributions()`.
+Entries are preserved verbatim. The canonical living reference is `agents/architecture.md`.
 
 ---
 
@@ -453,141 +349,236 @@ mod testing;
 
 ---
 
-## DEBT
+## Automapping Sprint — Architecture Notes
 
-| Debt | Cost if unaddressed | Trigger to fix |
-|---|---|---|
-| ~~No test infrastructure~~ | ~~RESOLVED. 20 tests passing: toolbar, panel visibility (8), helpers (various). `assert_panel_visible` / `assert_panel_not_visible` implemented and verified.~~ | — |
-| `process_edit_actions` is not tested | The central dispatch function has no coverage; silent breakage of undo/redo/save is possible | When the undo/redo or save path has a regression |
-| Texture cache loading coupled to Bevy Asset system | Cannot unit-test texture loading logic without a running Bevy app | If a texture loading bug is introduced that integration testing would catch |
-| `CollisionDragOperation` wildcard arm in `drag_stopped()` silently discards `MoveShape`, `ResizeRect`, `ResizeCircle` | If any code path ever initializes one of these operations, the drag commits nothing and produces no error; the compiler's exhaustiveness guarantee is suppressed by `_ => {}` | When `MoveShape` / `ResizeRect` / `ResizeCircle` operations are implemented |
-| `0.01` drag-commit threshold is a magic constant in `drag_stopped()` | Minor readability issue; not a behavioral problem | If threshold ever needs tuning — extract to a named const |
-| `format!("{:?}", one_way)` in CollisionProperties ComboBox exposes Rust debug format | Cosmetic only — user sees `Top` instead of "Top (Pass from below)"; consistent with existing style but not ideal | When the properties panel gets a UX polish pass |
-| `find_layer_index` in `crates/bevy_map_automap/src/apply.rs` is a permanent stub returning `None` | **Functional, not cosmetic.** Every automap rule that targets a named layer silently writes to nowhere; output groups and alternatives that specify `layer_id` are fully ignored at apply time. No error is surfaced. The editor appears to run automap successfully while producing no output on targeted layers. | When Barclay's `Layer::id` branch merges into `bevy_map_core` — this must be the first change applied; delay beyond that point means silently broken automap results in user projects |
-| `apply_automap_config` is O(rules × width × height) | Acceptable now; may produce noticeable lag on large levels with many rules | If user reports lag on levels larger than 256×256 |
-| `Layer::id` on old project files is not stable until the first save | Rule `layer_id` references assigned on load may diverge if the file is subsequently edited by another tool before saving | When multi-tool workflows are supported |
-| Output alternative grid dimensions stored independently per alternative | Visually confusing in the automap UI editor if source and output grids differ in cell size; no validation or warning | When Troi produces a UX spec for the automap rule editor |
-| `apply_automap_config` takes `impl Rng` but no seed is exposed | Deterministic replay of probabilistic rules is impossible without externally supplying the seed | If replay or regression testing of probabilistic automap rules is required |
+**Author:** Lt. Cmdr. Data
+**Date:** 2026-02-26
+**Status:** Design complete. Three escalations pending user decision before SE begins.
 
 ---
 
-## Session Status
+### Crate Layout
 
-**Last updated:** 2026-02-27 (Sprint: Automapping, mid-sprint)
+**`bevy_map_automap` (new crate, no Bevy dependency):**
+- `src/types.rs` — all data types
+- `src/apply.rs` — `apply_ruleset`, `apply_automap_config`, and all helpers
+- Dependencies: `bevy_map_core`, `serde`, `uuid`, `rand`
 
-**Cumulative completed:**
-- Phase 1 UI testing rig: `egui_kittest` dev-dep added, `toolbar_grid_checkbox_toggle` test passing
-- Test helper module (`src/testing.rs`) fully implemented and signed off by Worf
-- Phase 3 snapshot tests: `wgpu` feature added to `egui_kittest` dev-dep; two snapshot tests written and blessed
-- `assert_panel_visible` / `assert_panel_not_visible` implemented; 8 panel visibility tests added
-- Collision editor drag bug fixed (Wesley): Rectangle/Circle drag initialization moved from `clicked()` to `drag_started()`
-- Collision editor numeric input panel added (Barclay): DragValue fields for all CollisionShape variants in `render_collision_properties`
-- **34 tests passing, 0 failures** (+14 this sprint: 10 label-presence tests for numeric panel, 4 smoke tests per draw mode)
-- Agent team: Star Trek TNG personas; SE personas in individual `.claude/agents/` files
-- `agents/permissions.md` created
-- **Sprint protocol updated:** All agents spawn simultaneously; self-assign tasks; Data reviews code before Worf; Troi reviews UX output from Data; Picard never edits production files
+**`bevy_map_core` (modification):**
+- `Layer` struct receives `pub id: Uuid` with `#[serde(default = "Uuid::new_v4")]` — required for stable layer references. See Escalation 1.
 
-**Drag canvas testability note:** `handle_collision_canvas_input` canvas drag behavior cannot be tested with the current `egui_kittest` rig — the canvas is an unlabeled painter region with no AccessKit node. Testing drag-to-draw requires either an accessible wrapper on the canvas response or extraction of drag state logic into a pure function. This is a Data-level architecture decision for a future sprint.
+**`bevy_map_editor` (modification):**
+- `Project` gains `pub automap_config: AutomapConfig` with `#[serde(default)]`
+- `AutomapCommand` implemented in `commands/command.rs`
+- `PendingAction::ApplyAutomap` wired in `process_edit_actions`
+- `validate_automap_config` added to `Project::validate_and_cleanup`
 
-**Phase 3 snapshot test inventory:**
+---
 
-| Test | Description | Baseline PNG |
-|---|---|---|
-| `ui::toolbar::tests::toolbar_default_snapshot` | Toolbar with `EditorState::default()` (Select tool, Level view, Grid checked) | `crates/bevy_map_editor/tests/snapshots/toolbar_default_snapshot.png` |
-| `ui::toolbar::tests::toolbar_paint_tool_snapshot` | Toolbar with `current_tool = Paint` (Mode combobox + Random/X/Y toggles visible) | `crates/bevy_map_editor/tests/snapshots/toolbar_paint_tool_snapshot.png` |
-
-**Bless workflow:**
-```
-UPDATE_SNAPSHOTS=1 cargo test -p bevy_map_editor toolbar_default_snapshot
-UPDATE_SNAPSHOTS=1 cargo test -p bevy_map_editor toolbar_paint_tool_snapshot
-```
-
-**Snapshot storage path:** `crates/bevy_map_editor/tests/snapshots/` (default from `egui_kittest`, relative to crate root during `cargo test`).
-
-**`capture_snapshot` helper note:** `testing.rs` retains its comment-block placeholder for `capture_snapshot`. The snapshot tests call `harness.snapshot(name)` directly, per the sprint directive that no new helpers should be added. If a project-wide default threshold override is needed in future, `capture_snapshot` can be implemented as a thin wrapper over `harness.snapshot_options(name, opts)` at that time.
-
-**Completed this session (2026-02-26, continued):**
-- Tree View heading renamed: `ui.heading("Project")` → `ui.heading("Tree View")` in `tree_view.rs` line 107. Decision: `"Project"` was ambiguous against the "Project" top-level menu and project-name status label. No existing tests referenced the old string. Zero test breakage.
-- Asset Browser heading added: `ui.heading("Asset Browser")` inserted at `asset_browser.rs` line 328, before the horizontal toolbar row. This was the final prerequisite for `assert_panel_visible`.
-- Both changes compile cleanly (`cargo build -p bevy_map_editor --features dynamic_linking`).
-- `testing.md` anchor label table updated.
-
-**Final anchor labels (canonical):**
-| Panel | Anchor |
-|---|---|
-| Inspector | `"Inspector"` |
-| Tree View | `"Tree View"` |
-| Asset Browser | `"Asset Browser"` |
-
-**Troi Open Question 1 — ANSWERED (2026-02-26):**
-
-Yes. Individual panel render functions can be wrapped directly in `SidePanel`/`TopBottomPanel`
-wrappers inside a `egui_kittest::Harness` closure. The panel wrappers (`SidePanel::right`,
-`SidePanel::left`, `TopBottomPanel::bottom`) are plain egui API calls that take only
-`&egui::Context` — which the harness closure provides. There is no Bevy coupling at the
-panel wrapper level. The Bevy coupling lives only in `render_ui`'s system parameter list
-(`ResMut<EditorState>` etc.), which is not involved in the inner render functions.
-
-The approved harness pattern for panel visibility tests:
+### Core Data Types
 
 ```rust
-pub fn harness_for_inspector(state: InspectorBundle) -> Harness<'static, InspectorBundle> {
-    Harness::new_state(
-        |ctx, state: &mut InspectorBundle| {
-            if state.ui_state.show_inspector {
-                egui::SidePanel::right("inspector").show(ctx, |ui| {
-                    render_inspector(ui, &state.selection, &mut state.project);
-                });
-            }
-        },
-        state,
-    )
+// bevy_map_automap/src/types.rs
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AutomapConfig {
+    pub rule_sets: Vec<RuleSet>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleSet {
+    pub id: Uuid,
+    pub name: String,
+    pub rules: Vec<Rule>,
+    pub settings: RuleSetSettings,
+    #[serde(default)]
+    pub disabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleSetSettings {
+    pub edge_handling: EdgeHandling,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum EdgeHandling {
+    #[default]
+    Skip,
+    TreatAsEmpty,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Rule {
+    pub id: Uuid,
+    pub name: String,
+    /// AND logic: all groups must match.
+    pub input_groups: Vec<InputConditionGroup>,
+    /// Exactly one selected per match (weighted random).
+    pub output_alternatives: Vec<OutputAlternative>,
+    #[serde(default)]
+    pub no_overlapping_output: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InputConditionGroup {
+    pub layer_id: Uuid,           // references Layer::id
+    pub half_width: u32,          // pattern = (2*hw+1) x (2*hh+1)
+    pub half_height: u32,
+    pub matchers: Vec<CellMatcher>, // row-major, len = (2*hw+1)*(2*hh+1)
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CellMatcher {
+    Ignore,
+    Empty,
+    NonEmpty,
+    Tile(u32),    // tile index; flip bits stripped before compare
+    NotTile(u32), // tile index; flip bits stripped before compare
+    Other,        // matches any tile not listed as Tile/NotTile anywhere in this rule
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum CellOutput {
+    Ignore,    // leave cell unchanged
+    Empty,     // erase cell (write None)
+    Tile(u32), // write specific tile (flip bits preserved)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputAlternative {
+    pub id: Uuid,
+    pub layer_id: Uuid,
+    pub half_width: u32,
+    pub half_height: u32,
+    pub outputs: Vec<CellOutput>,
+    #[serde(default = "default_weight")]
+    pub weight: u32,  // 0 = never selected
+}
+fn default_weight() -> u32 { 1 }
+```
+
+---
+
+### Layer References: UUID
+
+Layer references use `Uuid`, not string names or indices. `Layer` gains `pub id: Uuid` with `#[serde(default = "Uuid::new_v4")]`. Old project files load cleanly (fresh UUID assigned on deserialization, stable on next save).
+
+**See Escalation 1** — this is a one-way format migration. User decision required.
+
+---
+
+### Application Algorithm
+
+```
+apply_automap_config(level, config, rng):
+    for each rule_set in config.rule_sets (if not disabled):
+        apply_ruleset(level, rule_set, rng)
+
+apply_ruleset(level, rule_set, rng):
+    for each rule in rule_set.rules:
+        explicit_tiles = union of all Tile(x)/NotTile(x) indices across all input_groups
+        written_positions = HashSet  // for NoOverlappingOutput
+
+        resolve all layer_ids → layer indices; skip rule with warning if any ID not found
+
+        for y in 0..level.height:
+            for x in 0..level.width:
+                if no_overlapping_output && (x,y) in written_positions: continue
+                if all_input_groups_match(level, rule, (x,y), edge_handling, explicit_tiles):
+                    alt = select_output_alternative(rule.output_alternatives, rng)
+                    if alt is Some:
+                        apply_output_alternative(level, alt, (x,y))
+                        if no_overlapping_output: mark alt's cells as written
+
+matcher_matches(matcher, cell, edge_handling):
+    Ignore      → always true
+    Empty       → cell is None (including OOB treated-as-empty)
+    NonEmpty    → cell is Some(_)
+    Tile(id)    → cell is Some(v) && tile_index(v) == id
+    NotTile(id) → cell is Some(v) && tile_index(v) != id, OR cell is None
+    Other       → cell is Some(v) && tile_index(v) NOT IN explicit_tiles
+    OOB + Skip  → any matcher returns false (position skipped entirely)
+    OOB + TreatAsEmpty → treated as None (NonEmpty/Tile/Other still fail)
+
+select_output_alternative(alts, rng):
+    total = sum of weights; if 0 return None
+    weighted random pick
+```
+
+**Key edge cases:**
+- `NotTile(x)` on empty cell → true (empty is not tile X)
+- `Other` on empty cell → false (Other requires a tile present)
+- Zero-weight alternatives → never selected; if all are zero, rule fires but no output
+- Rule with no Tile/NotTile matchers → `explicit_tiles` empty; `Other` matches every non-empty tile
+- Pattern larger than map → all positions skip (Skip mode); may match at edges (TreatAsEmpty mode)
+
+---
+
+### Project Integration
+
+```rust
+// crates/bevy_map_editor/src/project/mod.rs
+#[serde(default)]
+pub automap_config: AutomapConfig,
+```
+
+Follows the exact pattern of `autotile_config`. Old files get an empty config. `validate_and_cleanup` gains `validate_automap_config` that removes references to non-existent layer UUIDs. See Escalation 2 for behavior on layer deletion.
+
+---
+
+### AutomapCommand (Undo/Redo)
+
+```rust
+pub struct AutomapCommand {
+    pub level_id: Uuid,
+    /// layer_index → HashMap<(x,y), (old_tile, new_tile)>
+    pub layer_changes: HashMap<usize, HashMap<(u32, u32), (Option<u32>, Option<u32>)>>,
+    description: String,
 }
 ```
 
-The `if ui_state.show_*` guard must be present in the test harness closure — this is what
-produces the absent-vs-present node behavior that `assert_panel_visible` tests. The render
-function itself does not need modification. This pattern generalizes to all three panels:
-- Inspector: `egui::SidePanel::right("inspector")`
-- Tree View: `egui::SidePanel::left("tree_view")`
-- Asset Browser: `egui::TopBottomPanel::bottom("asset_browser")`
+Execute applies `new_tile` values; undo applies `old_tile` values. Both set `render_state.needs_rebuild = true`. Identical pattern to `BatchTileCommand`, extended to multi-layer.
 
-The panel `id_source` strings (`"inspector"`, `"tree_view"`, `"asset_browser"`) must match
-production code to avoid id collisions if tests ever run multiple panels in one harness.
+**Snapshot protocol:** Before calling `apply_automap_config`, snapshot all tile layers. After it returns, diff per layer. Construct command from non-empty diffs. Discard if no changes.
 
-**Blocked / deferred:**
-- `process_edit_actions` has no test coverage (see DEBT table)
+**Testability requirement (from Worf):** `execute()` must be pure — no Bevy API calls. The snapshot + diff construction can call Bevy APIs in the system that wraps the command, but `execute()` and `undo()` themselves operate only on `&mut Project`. Worf will escalate immediately if this is violated.
 
 ---
 
-## Sprint: Automapping — Session Status
+### SE Assignment
 
-**Last updated:** 2026-02-27
+**Track A — Engine (`bevy_map_automap` crate):**
+Persona: **Geordi**. Non-trivial algorithm; creative problem-solving value.
+Branch: `sprint/automapping/geordi-engine`
 
-**Open PRs:**
+**Track B — Editor integration (`bevy_map_core`, `commands/`, `project/`):**
+Persona: **Barclay**. Touches serialized format, serde attributes, orphan cleanup, multi-layer diff. Edge cases favor Barclay's thoroughness.
+Branch: `sprint/automapping/barclay-integration`
 
-| PR | Branch | Assignee | Status |
-|---|---|---|---|
-| #1 | `sprint/automapping/geordi-engine` | Geordi | Open — awaiting Data review |
-| #2 | `sprint/automapping/wesley-ui` | Wesley | Open — awaiting Barclay's PR #3 merge first (depends on `show_automap_editor` + `automap_editor_state` fields) |
-| #3 | `sprint/automapping/barclay-integration` | Barclay | Open — compiles cleanly standalone; awaiting Data review |
+**Track C — Visual rule editor UI:** Blocked on Troi's spec (T-01). Assigned after T-01 completes.
 
-**Merge order:** PR #3 (Barclay) must merge before PR #2 (Wesley) can rebase. Data reviews #1 and #3 first; Wesley rebases #2 after #3 merges.
+**Parallel safety:** Geordi only touches `crates/bevy_map_automap/`. Barclay touches `bevy_map_core/src/layer.rs`, `bevy_map_editor/src/project/mod.rs`, `bevy_map_editor/src/commands/command.rs`. No file overlap. Safe to run in parallel. Sequencing constraint: Geordi must publish the crate skeleton (types only) first so Barclay's `cargo check` passes.
 
-**Build state:** `cargo check -p bevy_map_editor` passes on `sprint/automapping/barclay-integration`.
+---
 
-**Known live stub:** `find_layer_index` in `crates/bevy_map_automap/src/apply.rs` returns `None` permanently. Recorded in DEBT table. Fix is gated on `Layer::id` landing in `bevy_map_core` (Barclay's branch).
+### DEBT — Automapping
 
-**Tests:** T-05 (Worf) is blocked. No automapping tests written yet. Blocked on Data review of PRs #1, #3 and merge of PR #3.
+| Debt | Cost if unaddressed | Trigger to fix |
+|---|---|---|
+| `apply_automap_config` is O(rules × width × height) | Acceptable now; may lag on large levels with many rules | If user reports lag on levels > 256×256 |
+| `Layer::id` on old files is not stable until first save | Rule references assigned on load may diverge if file is edited by another tool | When multi-tool workflows are supported |
+| Output alternative grid dimensions stored independently | Visually confusing in the UI editor if grids differ in size | Troi UX spec may constrain this |
+| `apply_automap_config` takes `impl Rng` | Deterministic replay requires externally supplied seed | If replay/testing of probabilistic rules is needed |
 
-**Layer mapping persistence:** Not yet implemented. The automap rule editor (Wesley) allows rules to reference layer IDs, but the persistence layer for these associations in the editor's project serialization is not wired. This is in-flight debt — not yet in DEBT table; must be added when scope is confirmed with Data.
+---
 
-**Next actions (in order):**
-1. Data reviews PR #1 (Geordi engine) and PR #3 (Barclay integration)
-2. Data gives GO on #3 → Barclay's PR merges
-3. Wesley rebases PR #2 on updated main; Data reviews
-4. All three merged → Worf writes T-05 tests
-5. `find_layer_index` stub resolved once `Layer::id` is in `bevy_map_core`
+### Escalations (User Decision Required)
+
+**[ESCALATE 1: Layer UUID format migration]** Adding `id: Uuid` to `Layer` changes the serialized format of every project file. Old files load cleanly (fresh UUID assigned on deserialization), but the new field is written on next save — one-way migration; not backward-compatible with older editor builds. **Does the user accept this migration?** If not, we must redesign with name-based references plus validation warnings.
+
+**[ESCALATE 2: Orphan reference behavior on layer delete]** When a layer is deleted, should automap rule references to that layer be silently cleaned up (matching existing `autotile_config` pattern), or should the user see a warning listing affected rules before deletion proceeds? **User decision required.**
+
+**[ESCALATE 3: Flip bit matching]** Current design strips flip bits before tile index comparison (matching Tiled behavior). Should the engine support flip-aware matching — e.g., `TileFlipped(id, flip_x, flip_y)` as a `CellMatcher` variant? Designing for it now costs little; adding it later requires a data format change. **Recommendation: add the variant now, even if the UI only exposes it in a future sprint.** User confirmation preferred.
 
 ---
 
@@ -895,6 +886,456 @@ Both changes are correct. No blocking issues. Advisory findings are recorded abo
 **Pre-existing debt noted (not blocking this sprint):**
 - Wildcard `_ => {}` in `drag_stopped()` silently discards `MoveShape`, `ResizeRect`, `ResizeCircle` operations. These are unimplemented, not bugs. Recorded in DEBT section below.
 - `0.01` drag threshold magic constant in `drag_stopped()`.
-- `format!("{:?}", one_way)` in ComboBox exposes Rust debug format (pre-existing, noted in prior session).
 
 ---
+
+## Automapping Sprint — Post-T-02 Decision Record
+
+**Author:** Lt. Cmdr. Data
+**Date:** 2026-02-26
+**Status:** All five user decisions resolved. GO issued to all three SE tracks.
+
+This section supplements the "Automapping Sprint — Architecture Notes" section above. That section contains the original design. This section records the five decisions made at T-02 and their precise architectural implications, answers the two Troi technical questions, and issues GO to each SE track.
+
+---
+
+### Decision 1: Layer UUID — Approved
+
+**Decision:** Proceed as designed. `Layer` gains `pub id: Uuid` with `#[serde(default = "Uuid::new_v4")]`. Old files load cleanly; new UUID assigned on deserialization, stable on next save. One-way format migration accepted.
+
+**Architectural implication:** No change to the design already recorded in the Architecture Notes section. Barclay proceeds.
+
+---
+
+### Decision 2: Orphan Reference Behavior on Layer Delete — Warning Dialog with Persistent Preference
+
+**Decision:** When a layer referenced by automap rules is deleted, the editor shows a warning dialog. The dialog includes a "Do not ask me again" checkbox. The user's preference for this checkbox must be persisted.
+
+**Persistence location:** Editor preferences (not project file). The preference is user-global, not project-specific. It follows the existing pattern for editor preferences stored in `EditorState` or a companion struct.
+
+**Architectural implication for Barclay:**
+
+The warning dialog is triggered from `validate_automap_config` — or more precisely, from the layer-delete path in `process_edit_actions`. The sequence is:
+
+1. User triggers layer delete.
+2. Before executing the delete, the system checks whether any `InputConditionGroup.layer_id` or `OutputAlternative.layer_id` in `project.automap_config` references the layer being deleted.
+3. If references exist AND the user preference is "ask me" (i.e., `suppress_orphan_warning` is `false`): show the warning dialog with the list of affected rule set/rule names and the "Do not ask me again" checkbox.
+4. If the user confirms (or if `suppress_orphan_warning` is `true`): proceed with delete. `validate_automap_config` then cleans up the orphaned references.
+5. If the user cancels: abort the delete.
+
+**New field required on `EditorState` (or `EditorPreferences` if that struct exists):**
+
+```rust
+/// If true, skip the orphan-reference warning when deleting a layer that automap rules reference.
+pub suppress_automap_orphan_warning: bool,
+```
+
+Default: `false`. When the user checks "Do not ask me again" and confirms, this is set to `true` and persisted.
+
+**Persistence mechanism:** Barclay must determine where editor preferences are persisted in this codebase (likely `EditorState` serialized to a prefs file, or a dedicated prefs struct). Before writing code, Barclay must bring this back to Data with one sentence: "Editor preferences are persisted at [location] using [mechanism]." If no persistence mechanism exists, escalate to Data before adding one.
+
+**Warning dialog content:** Troi owns the exact wording. Barclay implements the dialog plumbing; Troi confirms the copy before Barclay ships. The dialog must list: how many rule sets are affected, how many rules reference the layer. It need not list every rule name — a count is sufficient per Troi's design authority, unless Troi specifies otherwise.
+
+---
+
+### Decision 3: Flip-Aware Matching — TileFlipped CellMatcher Variant
+
+**Decision:** Flipped tiles are NOT equivalent to non-flipped tiles. The engine must support flip-aware matching. The `TileFlipped` variant is added to `CellMatcher` now. The UI does not expose it this sprint. The data model and matching algorithm must support it.
+
+**Representation:** Three fields — `id: u32`, `flip_x: bool`, `flip_y: bool` — stored as named fields, not packed. Rationale: packing into a u32 saves 1 byte per matcher at the cost of non-obvious decode logic and a serde representation that requires custom handling. Named fields are self-describing in the JSON/RON serialized form, readable by external tools, and require no custom serde. The storage cost is 4 + 1 + 1 = 6 bytes per matcher vs. 5 bytes packed — the delta is negligible at any practical rule count.
+
+**Revised `CellMatcher` enum:**
+
+```rust
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CellMatcher {
+    Ignore,
+    Empty,
+    NonEmpty,
+    /// Match a specific tile index, regardless of flip state (flip bits stripped before compare).
+    Tile(u32),
+    /// Match any tile except the specified index, regardless of flip state.
+    NotTile(u32),
+    /// Match a specific tile index with exact flip state.
+    TileFlipped { id: u32, flip_x: bool, flip_y: bool },
+    /// Matches any tile whose index is not listed as Tile/NotTile/TileFlipped in this rule.
+    Other,
+}
+```
+
+**Algorithm change for `matcher_matches`:** The existing `Tile(id)` strips flip bits before comparison. `TileFlipped { id, flip_x, flip_y }` must compare both the tile index (after stripping flip bits) AND the actual flip bits stored in the cell value. Geordi must define the flip bit extraction function — it depends on how flip bits are encoded in the tile value `u32`. He must bring the exact bit layout to Data before writing `matcher_matches`.
+
+**`explicit_tiles` set for `Other` matching:** `TileFlipped` variants contribute their `id` to `explicit_tiles`, the same as `Tile(id)`. The `Other` matcher means "any tile whose base index is not in explicit_tiles." Flip state does not affect explicit_tiles membership.
+
+**Serde compatibility:** `TileFlipped` as a named-fields variant serializes as `{"TileFlipped":{"id":N,"flip_x":true,"flip_y":false}}` in JSON. This is the serde default for enum variants with named fields. No custom serde needed.
+
+---
+
+### Decision 4: "Until Stable" Apply Mode — In Scope with Iteration Cap
+
+**Decision:** "Until Stable" is in scope this sprint. Add it to `RuleSetSettings::apply_mode`. The algorithm must detect cycles. A cap on iterations is required.
+
+**`RuleSetSettings` revised:**
+
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RuleSetSettings {
+    pub edge_handling: EdgeHandling,
+    pub apply_mode: ApplyMode,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum ApplyMode {
+    #[default]
+    Once,
+    UntilStable,
+}
+```
+
+**Loop detection approach:** iteration cap. The cap value is **100 iterations**, hard-coded as a named constant. Rationale: a rule set that does not converge in 100 full passes over the map is almost certainly cycling. 100 passes on a 256x256 map with 10 rules is 100 × 256 × 256 × 10 = 65,536,000 cell evaluations — measurable lag, but not a hang. The cap is sufficient to catch all practical cycling configurations while not hiding pathological rule sets entirely. If the cap is reached, the function returns with the current state and logs a warning (to `eprintln!` or Bevy's `warn!` macro if available in `bevy_map_automap` — Geordi decides based on whether the crate takes a Bevy dep, which it does not; use `eprintln!` with a structured prefix).
+
+**Named constant:**
+
+```rust
+/// Maximum number of full-pass iterations in UntilStable mode before aborting.
+/// A rule set that does not converge within this many passes is assumed to be cycling.
+pub const UNTIL_STABLE_MAX_ITERATIONS: u32 = 100;
+```
+
+**The cap is NOT user-configurable this sprint.** Adding a "Max iterations" field to `RuleSetSettings` is deferred. The constant is defined at crate level in `bevy_map_automap` so it is findable and changeable without a data format change if the limit proves wrong in practice.
+
+**Algorithm change for `apply_ruleset`:**
+
+```
+apply_ruleset(level, rule_set, rng):
+    match rule_set.settings.apply_mode:
+        Once => apply_ruleset_once(level, rule_set, rng)
+        UntilStable =>
+            for iteration in 0..UNTIL_STABLE_MAX_ITERATIONS:
+                snapshot = snapshot_relevant_layers(level, rule_set)
+                apply_ruleset_once(level, rule_set, rng)
+                if level_matches_snapshot(level, snapshot, rule_set):
+                    return  // stable
+            eprintln!("[automap] rule set '{}' did not converge after {} iterations",
+                      rule_set.name, UNTIL_STABLE_MAX_ITERATIONS)
+            // return with current state; do not panic
+```
+
+`snapshot_relevant_layers` snapshots only the layers referenced in the rule set's rules (not all layers), to minimize memory allocation per iteration. Geordi defines the snapshot representation — a `HashMap<Uuid, Vec<Option<u32>>>` (layer_id → flat cell array) is the straightforward choice.
+
+**Stable detection:** The map is stable when no cell in any referenced layer changed during the last pass. Comparing the pre-pass snapshot to the post-pass state is the definition. Note: with probabilistic output alternatives, a rule set may never be stable if the weights allow different outputs on each pass. The cap correctly handles this — it will always terminate. Geordi must note this in a doc comment on `UNTIL_STABLE_MAX_ITERATIONS`.
+
+---
+
+### Decision 5: Rule Reordering — Up/Down Buttons (Final)
+
+**Decision:** Up/Down arrow buttons for both rule sets and rules. This is Troi's final design. Drag-and-drop deferred. No architectural implication beyond what is already specified in Troi's UX spec section 4 and 5. No SE action needed — this was already resolved in ESCALATE-04 (CLOSED in the spec).
+
+---
+
+### Troi's Technical Questions — Answered
+
+#### ESCALATE-07: Data Model Location (for UI SE and Troi)
+
+These answers apply to the UI SE implementing `automap_editor.rs` and to any test code Worf writes.
+
+**1. Where do `RuleSet`, `Rule`, and related types live?**
+
+All types — `AutomapConfig`, `RuleSet`, `RuleSetSettings`, `ApplyMode`, `EdgeHandling`, `Rule`, `InputConditionGroup`, `CellMatcher`, `CellOutput`, `OutputAlternative` — live in:
+
+```
+crates/bevy_map_automap/src/types.rs
+```
+
+The crate is `bevy_map_automap`. The UI crate (`bevy_map_editor`) adds `bevy_map_automap` as a dependency. The UI SE imports these types directly:
+
+```rust
+use bevy_map_automap::{AutomapConfig, RuleSet, Rule, CellMatcher, /* ... */};
+```
+
+**2. Does `project.automap_config` exist as a named field on `Project`, and what is its type?**
+
+Yes. `Project` in `crates/bevy_map_editor/src/project/mod.rs` gains:
+
+```rust
+#[serde(default)]
+pub automap_config: AutomapConfig,
+```
+
+`AutomapConfig` is `bevy_map_automap::AutomapConfig`. This is the same pattern as `autotile_config`. The field is public. The UI SE accesses it as `project.automap_config.rule_sets`.
+
+**3. Is `AutomapCommand::execute()` a pure function over `&mut Project`?**
+
+Yes. `execute()` and `undo()` take `&mut Project` and nothing else. They apply tile changes directly to `project.levels[level_index].layers[layer_index].tiles`. No Bevy API calls inside these methods. The wrapping system in `process_edit_actions` handles the snapshot, diff, and push to `CommandHistory`.
+
+**4. What is the `AutomapCommand` constructor signature?**
+
+```rust
+impl AutomapCommand {
+    pub fn new(
+        level_id: Uuid,
+        layer_changes: HashMap<usize, HashMap<(u32, u32), (Option<u32>, Option<u32>)>>,
+        description: String,
+    ) -> Self
+}
+```
+
+`layer_changes` maps `layer_index` (usize, not UUID) to a map of `(col, row) → (old_tile, new_tile)`. The layer index is resolved at snapshot time in the wrapping system. The UI SE does not construct `AutomapCommand` directly — that is done in `process_edit_actions` after calling `apply_automap_config`.
+
+---
+
+#### ESCALATE-02: Three-Column Fixed-Width Layout in egui (for UI SE)
+
+**Decision:** Option A — `ui.allocate_ui_with_layout` with explicit width, placed inside a `ui.horizontal` block.
+
+**Rationale:** `SidePanel` (Option B) is a window-level concept; using it inside an `egui::Window` produces confusing nested panel behavior and interferes with the window's own resize logic. `Frame` with `min_rect` constraints (Option C) does not enforce width; it only sets a minimum. `allocate_ui_with_layout` is the correct egui primitive for claiming a fixed horizontal extent within a horizontal layout.
+
+**The pattern the UI SE must use:**
+
+```rust
+// Inside the automap editor window UI closure:
+ui.horizontal(|ui| {
+    // Column 1: Rule Sets — fixed 180px
+    ui.allocate_ui_with_layout(
+        egui::vec2(180.0, ui.available_height()),
+        egui::Layout::top_down(egui::Align::LEFT),
+        |ui| {
+            render_rule_set_column(ui, /* ... */);
+        },
+    );
+
+    ui.separator();
+
+    // Column 2: Rules — fixed 220px
+    ui.allocate_ui_with_layout(
+        egui::vec2(220.0, ui.available_height()),
+        egui::Layout::top_down(egui::Align::LEFT),
+        |ui| {
+            render_rule_column(ui, /* ... */);
+        },
+    );
+
+    ui.separator();
+
+    // Column 3: Pattern Editor — fills remaining width
+    // No allocate_ui_with_layout needed; just render into the remaining ui space.
+    render_pattern_editor_column(ui, /* ... */);
+});
+```
+
+**Key constraint:** `ui.available_height()` inside the `horizontal` block returns the height of the outer container. Each column's height is set to this value so the separators and backgrounds extend to the full panel height. The UI SE must call `ui.available_height()` before the first `allocate_ui_with_layout` and pass the same value to all three columns. If called inside each closure, the available height may change as widgets are added. Capture it once:
+
+```rust
+let col_height = ui.available_height();
+ui.horizontal(|ui| {
+    ui.allocate_ui_with_layout(egui::vec2(180.0, col_height), /* ... */);
+    ui.separator();
+    ui.allocate_ui_with_layout(egui::vec2(220.0, col_height), /* ... */);
+    ui.separator();
+    render_pattern_editor_column(ui, /* ... */);
+});
+```
+
+This pattern is the authoritative approach. The UI SE must not deviate without first bringing a specific technical objection back to Data.
+
+---
+
+### SE Track GO Orders
+
+---
+
+#### Track A — Geordi (Engine: `bevy_map_automap` crate)
+
+**Branch:** `sprint/automapping/geordi-engine`
+
+**GO. Geordi may begin implementation.**
+
+**What Geordi must implement:**
+
+1. **`crates/bevy_map_automap/Cargo.toml`** — crate manifest. Dependencies: `bevy_map_core`, `serde` (with `derive` feature), `uuid` (with `v4` + `serde` features), `rand`. No Bevy dependency. No `bevy` in the dependency tree.
+
+2. **`crates/bevy_map_automap/src/lib.rs`** — crate root. Re-exports all public types from `types.rs` and the `apply_automap_config` function from `apply.rs`.
+
+3. **`crates/bevy_map_automap/src/types.rs`** — all data types as specified in the Architecture Notes section, PLUS the following additions from this decision record:
+   - `RuleSetSettings` must include `apply_mode: ApplyMode`
+   - `ApplyMode` enum with variants `Once` and `UntilStable`, `Once` as default
+   - `CellMatcher::TileFlipped { id: u32, flip_x: bool, flip_y: bool }` variant added
+   - `UNTIL_STABLE_MAX_ITERATIONS: u32 = 100` constant at crate root level
+
+4. **`crates/bevy_map_automap/src/apply.rs`** — full algorithm implementation:
+   - `apply_automap_config(level: &mut Level, config: &AutomapConfig, rng: &mut impl Rng)`
+   - `apply_ruleset(level: &mut Level, rule_set: &RuleSet, rng: &mut impl Rng)`
+   - `apply_ruleset_once(level: &mut Level, rule_set: &RuleSet, rng: &mut impl Rng)` — inner helper
+   - `matcher_matches(matcher: &CellMatcher, cell: Option<u32>, edge_handling: EdgeHandling, explicit_tiles: &HashSet<u32>) -> bool`
+   - `select_output_alternative<R: Rng>(alts: &[OutputAlternative], rng: &mut R) -> Option<&OutputAlternative>`
+   - `UntilStable` loop using `UNTIL_STABLE_MAX_ITERATIONS`, snapshot-compare approach, `eprintln!` warning on cap reached
+   - Full edge case handling as specified in the Architecture Notes section
+
+**API proposals Geordi must bring back to Data before writing implementation code:**
+
+1. **Flip bit extraction:** The `TileFlipped` matcher requires extracting `flip_x` and `flip_y` from a `u32` cell value. Geordi must identify exactly which bits encode flip state in `bevy_map_core`'s tile representation, and propose the extraction function signature and bit mask values. Do not assume — read the source. Bring: function name, bit positions, and whether this function belongs in `bevy_map_core` or in `apply.rs`.
+
+2. **`Level` API surface:** `apply_automap_config` takes `&mut Level`. Geordi must confirm which methods or fields on `Level` are used for cell read and write (e.g., `level.get_tile(layer_index, col, row) -> Option<u32>` and `level.set_tile(layer_index, col, row, Option<u32>)`). If these methods do not exist and Geordi must access fields directly, he must name the exact field path. Bring the confirmed read/write path before writing `apply_ruleset_once`.
+
+3. **`UntilStable` snapshot representation:** Propose the type for the pre-pass snapshot used in stable detection. Preferred: `HashMap<usize, Vec<Option<u32>>>` (layer_index → flat cell array, row-major). Confirm that layer indices are stable within a single `apply_ruleset` call (i.e., no layer reallocation occurs during the call). Bring this confirmation before implementing the `UntilStable` branch.
+
+---
+
+#### Track B — Barclay (Integration: `bevy_map_core`, `project/`, `commands/`, warning dialog)
+
+**Branch:** `sprint/automapping/barclay-integration`
+
+**GO. Barclay may begin implementation.**
+
+**What Barclay must implement:**
+
+1. **`crates/bevy_map_core/src/layer.rs`** — add `pub id: Uuid` to `Layer` struct with `#[serde(default = "Uuid::new_v4")]`. Confirm that `Uuid::new_v4` is accessible as a bare function path (required by serde's `default` attribute). If not, a wrapper `fn new_layer_id() -> Uuid { Uuid::new_v4() }` is the standard workaround. Add `uuid` to `bevy_map_core`'s `Cargo.toml` dependencies with `v4` and `serde` features.
+
+2. **`crates/bevy_map_editor/src/project/mod.rs`** — add `#[serde(default)] pub automap_config: AutomapConfig` to `Project`. Add `bevy_map_automap` to `bevy_map_editor`'s `Cargo.toml` dependencies. Implement `validate_automap_config(&mut self)` on `Project` (or as a free function called from `validate_and_cleanup`) that removes `InputConditionGroup` and `OutputAlternative` entries whose `layer_id` does not match any `id` in any layer of any level. The removal is silent — no UI side effects from within this function.
+
+3. **`crates/bevy_map_editor/src/commands/command.rs`** — implement `AutomapCommand` as specified in the Architecture Notes section. Implement `Command` trait (`execute`, `undo`, `description`). The `layer_changes` map uses layer index (usize), not UUID — the index is resolved at snapshot time by the caller. Confirm that `BatchTileCommand` exists as a reference pattern before writing.
+
+4. **`crates/bevy_map_editor/src/preferences/mod.rs`** — add `pub suppress_automap_orphan_warning: bool` to `EditorPreferences`, defaulting to `false`. **NOT `EditorState`.** `EditorState` is not serialized and does not persist across sessions. `EditorPreferences` derives `Serialize`/`Deserialize` and has a working `save()` method. This is the correct home for a user-global "do not ask me again" preference. Update `EditorPreferences::default()` accordingly.
+
+   *(Sprint log correction: earlier versions of this entry placed this field on `EditorState`. That was incorrect and has been corrected here. Barclay's Proposal 3 analysis confirmed `EditorPreferences` is the right location.)*
+
+5. **Layer-delete orphan warning hook** — in `ui/mod.rs` at the existing layer delete call site (line 1103, `tree_view_result.delete_layer`), add the following before executing the delete:
+   - Check `project.automap_config` for any rule that references the layer being deleted, using `count_automap_orphan_refs(config, layer_id) -> (usize, usize)` (free function, not a method on `AutomapConfig` — see placement note below).
+   - If references exist and `preferences.suppress_automap_orphan_warning` is `false`: set `editor_state.pending_action` to the new variant `PendingAction::ConfirmLayerDeleteWithOrphanWarning { layer_id: Uuid, layer_idx: usize, level_id: Uuid, affected_rule_set_count: usize, affected_rule_count: usize }`. This causes the main loop to render the warning dialog on the next frame.
+   - The warning dialog is rendered in `render_dialogs` (in `ui/dialogs.rs`). `render_dialogs` must be extended with a `preferences: &mut EditorPreferences` parameter. The dialog shows the counts, a "Do not ask me again" checkbox bound to `preferences.suppress_automap_orphan_warning`, and Confirm/Cancel buttons. On Confirm: extract `layer_id`, `layer_idx`, `level_id` from the variant, execute the delete, call `preferences.save()` if the checkbox was checked, then call `validate_automap_config`. On Cancel: do nothing.
+   - If `preferences.suppress_automap_orphan_warning` is `true`: skip the dialog and proceed directly with delete + `validate_automap_config`.
+
+   **`count_automap_orphan_refs` placement:** This function takes `&AutomapConfig` and returns `(rule_set_count, rule_count)`. It must NOT be a method on `AutomapConfig` (that would couple the data type to editor-delete semantics). It must NOT live in `ui/mod.rs` (UI files should not own data-query logic). Place it in the same module as `validate_automap_config`. Barclay must confirm where `validate_automap_config` is implemented and place the count function there.
+
+6. **Persistence of `suppress_automap_orphan_warning`:** Before writing any persistence code, Barclay must bring one sentence to Data: "Editor preferences are persisted at [location] using [mechanism]." If no editor-preference persistence mechanism exists yet, do not invent one — escalate to Data.
+
+**API proposals Barclay must bring back to Data before writing implementation code:**
+
+1. **`PendingAction::ConfirmLayerDeleteWithOrphanWarning` placement:** Barclay must confirm that `PendingAction` in `ui/dialogs.rs` is the correct enum to extend (not a separate dialog queue). Bring the current `PendingAction` variant list and confirm the naming convention matches existing variants before adding.
+
+2. **Layer delete path:** Confirm where layer deletion is currently handled. Is it in `process_edit_actions` responding to an existing `PendingAction` variant, or in direct UI code? Bring the exact call site before adding the orphan-check hook.
+
+3. **Editor preference persistence:** As noted above — confirm the mechanism before touching it.
+
+---
+
+#### Track C — UI SE (Rule Editor Panel: `bevy_map_editor`)
+
+**Recommended persona: Wesley Crusher.**
+
+Rationale: The UX spec is fully written, complete, and detailed. The column layout approach is now decided. The data types are fully specified. The accessibility requirements are enumerated. This is a well-defined spec with a large but clear surface area. Wesley's strength — clean, pattern-adherent, fast output — fits this track. The complexity is in breadth (many widgets, many states) not in depth (no novel algorithmic problems). Barclay's edge-case focus is not needed here because Troi's spec has already pre-enumerated the edge cases (empty states, disabled states, boundary conditions on grid size). The pattern editor grid is the most complex component but is structurally repetitive — exactly Wesley's wheelhouse.
+
+**Branch:** `sprint/automapping/wesley-ui`
+
+**Prerequisite for Wesley:** Barclay's types (`AutomapConfig`, `RuleSet`, `Rule`, etc. via `bevy_map_automap`) must exist as a crate that compiles before Wesley can `cargo check` his UI code. Sequencing constraint: Wesley must not begin writing code that imports `bevy_map_automap` types until Geordi has pushed the types skeleton (even if `apply.rs` is incomplete). Geordi should push a types-only commit on `geordi-engine` as soon as `types.rs` compiles, so Wesley can unblock. Wesley may write the file structure and module skeleton in the interim without the import.
+
+**GO is conditional on Geordi having a compiling `types.rs` pushed. Wesley may begin the non-type-dependent scaffolding immediately.**
+
+**What Wesley must implement:**
+
+1. **`crates/bevy_map_editor/src/ui/automap_editor.rs`** — new file. The complete automap rule editor panel. This is the primary deliverable.
+
+2. **`crates/bevy_map_editor/src/lib.rs`** — add `pub show_automap_editor: bool` to `EditorState`. Default `false`.
+
+3. **`crates/bevy_map_editor/src/ui/dialogs.rs`** — add `RunAutomapRules` variant to `PendingAction`.
+
+4. **`crates/bevy_map_editor/src/ui/mod.rs`** — wire `PendingAction::RunAutomapRules` in `process_edit_actions`: snapshot all layers in the target level, call `apply_automap_config`, diff, construct `AutomapCommand` if non-empty, push to history, set `automap_editor_state.last_run_status`. Call `render_automap_editor` from the main UI render path when `editor_state.show_automap_editor`.
+
+5. **`crates/bevy_map_editor/src/ui/menu_bar.rs`** — add "Automap Rule Editor..." menu item in the Tools menu per the spec (section 14 of `automap_ux_spec.md`).
+
+6. **`crates/bevy_map_editor/src/commands/shortcuts.rs`** — add `Ctrl+Shift+A` shortcut that toggles `editor_state.show_automap_editor`.
+
+7. **State types** — `AutomapEditorState`, `AutomapEditorTab`, `InputBrushType`, `OutputBrushType` as specified in section 15 of `automap_ux_spec.md`. Add `pub automap_editor_state: AutomapEditorState` to `EditorState`.
+
+**Layout implementation in `automap_editor.rs`:**
+
+Use the column layout pattern decided in ESCALATE-02 above:
+
+```rust
+let col_height = ui.available_height();
+ui.horizontal(|ui| {
+    ui.allocate_ui_with_layout(egui::vec2(180.0, col_height), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+        render_rule_set_column(ui, /* ... */);
+    });
+    ui.separator();
+    ui.allocate_ui_with_layout(egui::vec2(220.0, col_height), egui::Layout::top_down(egui::Align::LEFT), |ui| {
+        render_rule_column(ui, /* ... */);
+    });
+    ui.separator();
+    render_pattern_editor_column(ui, /* ... */);
+});
+```
+
+Split the render into private helper functions. Suggested decomposition:
+- `render_automap_editor(ctx, editor_state, project)` — top-level, called from `ui/mod.rs`
+- `render_automap_toolbar(ui, editor_state, project)` — top strip (Run Rules, Auto on Draw, Level selector)
+- `render_rule_set_column(ui, editor_state, project)` — column 1
+- `render_rule_column(ui, editor_state, project)` — column 2
+- `render_pattern_editor_column(ui, editor_state, project)` — column 3
+- `render_input_pattern_tab(ui, editor_state, rule)` — inside column 3, Input tab
+- `render_output_patterns_tab(ui, editor_state, rule)` — inside column 3, Output tab
+- `render_layer_mapping_strip(ui, editor_state, project)` — bottom strip
+
+These are private functions within `automap_editor.rs`. The names are Wesley's to choose if he has a strong reason — but he must propose deviations to Data before implementing.
+
+**Accessibility requirements:** Wesley must follow Troi's spec section 12 exactly. Every interactive widget must have an accessible label. Grid cells must use accessible labels of the form "Input cell row N col M" and "Output cell row N col M alt K". ComboBox widgets must use `ComboBox::from_label(...)`. All icon buttons (`[^]`, `[v]`, `[x]`, `[-]`, `[+]`) must have `.on_hover_text(...)` tooltips as specified in section 12.
+
+**Grid keyboard navigation:** Arrow key navigation within the grid requires tracked focus state. Wesley must add `pub focused_input_cell: Option<(usize, usize)>` and `pub focused_output_cell: Option<(usize, usize, usize)>` (row, col, alt_index) to `AutomapEditorState`. Key press handling is via `ui.input(|i| i.key_pressed(...))` inside the grid loop.
+
+**"Other" brush type:** Omit from the initial implementation per ESCALATE-05. Input brush types: Ignore, Empty, NonEmpty, Tile, NotTile only.
+
+**Grid dimensions:** Odd numbers only (1, 3, 5, 7, 9) per ESCALATE-06. The `[-]` and `[+]` increment buttons must skip even sizes.
+
+**"Until Stable" apply mode:** The ComboBox in RuleSetSettings must include "Until Stable" as an option (Decision 4 confirmed it is in scope). The display string is "Until Stable".
+
+**Auto on Draw:** May be deferred to a follow-up task per ESCALATE-01. Wesley should render the toggle button as specified but may stub the hook if the implementation complexity blocks other parts of the UI. Bring a specific blocker to Data if deferred.
+
+**API proposals Wesley must bring back to Data before writing implementation code:**
+
+1. **`render_automap_editor` call site in `ui/mod.rs`:** Wesley must confirm where in the main UI render the automap editor window is called. Is it analogous to how `render_tileset_editor` is called? Bring the exact call site (function name, surrounding context) before adding the call.
+
+2. **`process_edit_actions` for `RunAutomapRules`:** Wesley must propose the exact sequence of operations for processing `RunAutomapRules`: which `Level` is accessed, how the snapshot is taken, what happens if no target level is selected. Bring this as a pseudocode proposal before writing the implementation.
+
+3. **Borrow checker strategy for `automap_editor.rs`:** The automap editor mutates both `editor_state` (for selection indices, brush state, tab) and `project` (for rule set names, rule contents, grid cells). Wesley must confirm whether he needs the `macro_rules!` re-borrow pattern used elsewhere in the codebase for nested mutations across egui closures, or whether a simpler approach (clone-mutate-write) suffices for the rule/cell edit paths. Bring the proposed borrow strategy before writing the column render functions.
+
+---
+
+### Parallel Safety Confirmation
+
+Three tracks are running simultaneously:
+
+| Track | SE | Files touched |
+|---|---|---|
+| A — Engine | Geordi | `crates/bevy_map_automap/` (new crate, all files) |
+| B — Integration | Barclay | `bevy_map_core/src/layer.rs`, `bevy_map_editor/src/project/mod.rs`, `bevy_map_editor/src/commands/command.rs`, `bevy_map_editor/src/lib.rs`, `bevy_map_editor/src/ui/dialogs.rs` |
+| C — UI | Wesley | `bevy_map_editor/src/ui/automap_editor.rs` (new), `bevy_map_editor/src/ui/mod.rs`, `bevy_map_editor/src/ui/menu_bar.rs`, `bevy_map_editor/src/commands/shortcuts.rs`, `bevy_map_editor/src/lib.rs`, `bevy_map_editor/src/ui/dialogs.rs` |
+
+**File conflict: `bevy_map_editor/src/lib.rs`** — Both Barclay and Wesley add fields to `EditorState` here. They must not edit this file simultaneously. Sequencing: Barclay adds `suppress_automap_orphan_warning` first (it is part of the integration track which has no dependency on Wesley's work). Wesley adds `show_automap_editor` and `automap_editor_state` after Barclay's changes are on the integration branch and rebased. Wesley waits for Barclay's `lib.rs` commit before touching `lib.rs` himself.
+
+**File conflict: `bevy_map_editor/src/ui/dialogs.rs`** — Both Barclay and Wesley extend `PendingAction`. Barclay adds `ConfirmLayerDeleteWithOrphanWarning`. Wesley adds `RunAutomapRules`. Same sequencing constraint: Barclay first, Wesley after Barclay's `dialogs.rs` commit is available.
+
+**All other files are disjoint. Geordi's crate is entirely new. No other overlap.**
+
+---
+
+### Session Status
+
+**Date:** 2026-02-26
+
+**Decisions made this session:**
+- All five T-02 user decisions incorporated.
+- `TileFlipped` CellMatcher variant designed (named fields, three-field representation).
+- `UntilStable` apply mode designed: `UNTIL_STABLE_MAX_ITERATIONS = 100`, not configurable this sprint, `eprintln!` warning on cap.
+- Orphan warning dialog: `suppress_automap_orphan_warning` field on **`EditorPreferences`** (not `EditorState`; corrected after Barclay's Proposal 3 analysis confirmed `EditorPreferences` is serialized and has `save()`). `EditorState` is not persisted across sessions.
+- Column layout: `allocate_ui_with_layout` pattern, `col_height` captured before `horizontal` block.
+- ESCALATE-07 data model questions answered for Troi and UI SE.
+
+**GO issued to:** Geordi (engine), Barclay (integration), Wesley (UI — conditional on Geordi types compiling).
+
+**API proposals outstanding (must return to Data before implementation):**
+- Geordi: ~~flip bit layout, `Level` read/write API, `UntilStable` snapshot type~~ **Retroactive review complete (2026-02-27). `types.rs` and `apply.rs` approved with one required correction: remove dead `first_alt` binding in `no_overlapping_output` block (apply.rs lines 170–178). See correction details above.**
+- Barclay: ~~`PendingAction` placement, layer-delete call site, editor preference persistence mechanism~~ **All three proposals reviewed and resolved by Data (2026-02-27). See decisions above.**
+- Wesley: `render_automap_editor` call site, `RunAutomapRules` processing sequence, borrow strategy for column render functions
+
+**Next action:** Each SE reads this document and the relevant spec, submits API proposals to Data, then awaits Data's response before writing implementation code.
+- `format!("{:?}", one_way)` in ComboBox exposes Rust debug format (pre-existing, noted in prior session).

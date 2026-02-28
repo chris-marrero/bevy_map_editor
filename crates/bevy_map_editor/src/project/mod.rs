@@ -9,6 +9,7 @@ pub use file::*;
 use bevy::prelude::Resource;
 use bevy_map_animation::SpriteData;
 use bevy_map_autotile::AutotileConfig;
+use bevy_map_automap::AutomapConfig;
 use bevy_map_core::{EntityTypeConfig, Level, Tileset, WorldConfig};
 use bevy_map_dialogue::DialogueTree;
 use bevy_map_schema::Schema;
@@ -118,6 +119,9 @@ pub struct Project {
     /// Autotile terrain configuration
     #[serde(default)]
     pub autotile_config: AutotileConfig,
+    /// Rule-based automapping configuration
+    #[serde(default)]
+    pub automap_config: AutomapConfig,
     /// Sprite sheet assets (reusable sprite/animation definitions)
     #[serde(default, alias = "animations")]
     pub sprite_sheets: Vec<SpriteData>,
@@ -161,6 +165,7 @@ impl Default for Project {
             data: DataStore::default(),
             levels: Vec::new(),
             autotile_config: AutotileConfig::default(),
+            automap_config: AutomapConfig::default(),
             sprite_sheets: Vec::new(),
             dialogues: Vec::new(),
             world_config: WorldConfig::default(),
@@ -187,6 +192,7 @@ impl Project {
             data: DataStore::default(),
             levels: Vec::new(),
             autotile_config: AutotileConfig::default(),
+            automap_config: AutomapConfig::default(),
             sprite_sheets: Vec::new(),
             dialogues: Vec::new(),
             world_config: WorldConfig::default(),
@@ -561,6 +567,87 @@ impl Project {
             );
             self.dirty = true;
         }
+
+        // Remove automap input_groups and output_alternatives that reference layer UUIDs
+        // which no longer exist in any level.
+        //
+        // We build a set of all layer IDs that currently exist across all levels. Any
+        // reference in an InputConditionGroup::layer_id or OutputAlternative::layer_id
+        // that is not in this set is a dangling reference and is removed.
+        //
+        // We count affected rule sets and rules (before removal) so the caller can
+        // surface a warning if needed — but the count here is used only for the
+        // cleanup log message.
+        let valid_layer_ids: std::collections::HashSet<Uuid> = self
+            .levels
+            .iter()
+            .flat_map(|level| level.layers.iter().map(|layer| layer.id))
+            .collect();
+
+        let mut total_removed_groups: usize = 0;
+        let mut total_removed_alts: usize = 0;
+
+        for rule_set in &mut self.automap_config.rule_sets {
+            for rule in &mut rule_set.rules {
+                let before_groups = rule.input_groups.len();
+                rule.input_groups
+                    .retain(|group| valid_layer_ids.contains(&group.layer_id));
+                total_removed_groups += before_groups - rule.input_groups.len();
+
+                let before_alts = rule.output_alternatives.len();
+                rule.output_alternatives
+                    .retain(|alt| valid_layer_ids.contains(&alt.layer_id));
+                total_removed_alts += before_alts - rule.output_alternatives.len();
+            }
+        }
+
+        if total_removed_groups > 0 || total_removed_alts > 0 {
+            bevy::log::info!(
+                "Cleaned up {} orphaned automap input group(s) and {} output alternative(s)",
+                total_removed_groups,
+                total_removed_alts
+            );
+            self.dirty = true;
+        }
+    }
+
+    /// Count how many rule sets and rules reference a layer that no longer exists.
+    ///
+    /// Returns `(affected_rule_set_count, affected_rule_count)`.
+    ///
+    /// A rule set is "affected" if at least one of its rules has an orphan reference.
+    /// A rule is "affected" if it has at least one `input_group` or `output_alternative`
+    /// whose `layer_id` is not in the current project.
+    ///
+    /// This is the pre-delete check: call it with the layer ID that is *about to be*
+    /// removed (i.e., the layer is still present when this method is called) by
+    /// checking against `target_layer_id` specifically.
+    pub fn count_automap_orphan_refs(&self, target_layer_id: Uuid) -> (usize, usize) {
+        let mut affected_rule_sets: usize = 0;
+        let mut affected_rules: usize = 0;
+
+        for rule_set in &self.automap_config.rule_sets {
+            let mut rule_set_affected = false;
+            for rule in &rule_set.rules {
+                let rule_affected = rule
+                    .input_groups
+                    .iter()
+                    .any(|g| g.layer_id == target_layer_id)
+                    || rule
+                        .output_alternatives
+                        .iter()
+                        .any(|a| a.layer_id == target_layer_id);
+                if rule_affected {
+                    affected_rules += 1;
+                    rule_set_affected = true;
+                }
+            }
+            if rule_set_affected {
+                affected_rule_sets += 1;
+            }
+        }
+
+        (affected_rule_sets, affected_rules)
     }
 }
 

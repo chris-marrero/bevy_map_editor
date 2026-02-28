@@ -1101,14 +1101,51 @@ fn render_ui(
 
     // Handle layer deletion
     if let Some((level_id, layer_idx)) = tree_view_result.delete_layer {
-        if let Some(level) = project.get_level_mut(level_id) {
-            if layer_idx < level.layers.len() {
-                level.layers.remove(layer_idx);
-                // Adjust selected layer if needed
-                if let Some(selected) = editor_state.selected_layer {
-                    if selected >= level.layers.len() {
-                        editor_state.selected_layer = level.layers.len().checked_sub(1);
+        // Look up the layer's stable UUID before any mutable borrow.
+        // We copy it out so the immutable borrow on `project` is released before
+        // we mutate it below.
+        let layer_id: Option<Uuid> = project
+            .get_level(level_id)
+            .and_then(|level| level.layers.get(layer_idx))
+            .map(|layer| layer.id);
+
+        if let Some(layer_id) = layer_id {
+            // Check whether any automap rules reference this layer.
+            let (affected_rule_sets, affected_rules) =
+                project.count_automap_orphan_refs(layer_id);
+
+            let should_warn = affected_rule_sets > 0
+                && !preferences.suppress_automap_orphan_warning;
+
+            if should_warn {
+                // Defer the deletion: show a confirmation dialog instead.
+                // The dialog (render_automap_orphan_warning_dialog) will perform
+                // the deletion if the user confirms.
+                editor_state.pending_action =
+                    Some(PendingAction::ConfirmLayerDeleteWithOrphanWarning {
+                        layer_id,
+                        layer_idx,
+                        level_id,
+                        affected_rule_set_count: affected_rule_sets,
+                        affected_rule_count: affected_rules,
+                    });
+            } else {
+                // No automap references, or the warning is suppressed — delete directly.
+                if let Some(level) = project.get_level_mut(level_id) {
+                    if layer_idx < level.layers.len() {
+                        level.layers.remove(layer_idx);
+                        // Adjust selected layer if it now points past the end.
+                        if let Some(selected) = editor_state.selected_layer {
+                            if selected >= level.layers.len() {
+                                editor_state.selected_layer =
+                                    level.layers.len().checked_sub(1);
+                            }
+                        }
                     }
+                }
+                // If there were suppressed orphan references, clean them up silently.
+                if affected_rule_sets > 0 {
+                    project.validate_and_cleanup();
                 }
             }
         }
@@ -1437,6 +1474,7 @@ fn render_ui(
         &mut project,
         &assets_base_path,
         &mut dialog_binds,
+        &mut preferences,
     );
 
     // Game settings dialog
@@ -1709,13 +1747,150 @@ fn process_edit_actions(
             PendingAction::OpenProjectFolder => {
                 handle_open_project_folder(&mut editor_state, &project);
             }
-            // File operations are handled in dialogs.rs
+            PendingAction::RunAutomapRules => {
+                handle_run_automap_rules(
+                    &editor_state,
+                    &mut project,
+                    &mut history,
+                    &mut render_state,
+                );
+            }
+            // File operations and modal dialogs are handled in dialogs.rs
             _ => {
                 // Put the action back so dialogs.rs can handle it
                 editor_state.pending_action = Some(action);
             }
         }
     }
+}
+
+/// Apply all enabled automap rule sets to the currently selected level and
+/// record the changes as an [`AutomapCommand`](crate::commands::AutomapCommand) in the undo history.
+///
+/// # Behaviour
+///
+/// - If no level is selected, this is a no-op with a logged warning.
+/// - Snapshots all tile layer data before running, diffs after, and only
+///   pushes a command if at least one cell changed.
+/// - Uses a fresh [`rand::rngs::SmallRng`] seeded from entropy for each
+///   invocation, matching the non-deterministic user expectation (rules with
+///   multiple output alternatives produce different results each time).
+///
+/// # Non-panicking guarantees
+///
+/// All layer and tile accesses are bounds-checked. A misconfigured rule set
+/// that references a non-existent layer is silently skipped by
+/// [`bevy_map_automap::apply_automap_config`].
+fn handle_run_automap_rules(
+    editor_state: &EditorState,
+    project: &mut Project,
+    history: &mut CommandHistory,
+    render_state: &mut RenderState,
+) {
+    use bevy_map_core::LayerData;
+    use rand::SeedableRng;
+
+    let level_id = match editor_state.selected_level {
+        Some(id) => id,
+        None => {
+            bevy::log::warn!("RunAutomapRules: no level selected, skipping");
+            return;
+        }
+    };
+
+    // Snapshot all tile layers before applying rules.
+    let before_snapshot: Vec<(usize, HashMap<(u32, u32), Option<u32>>)> = {
+        let level = match project.get_level(level_id) {
+            Some(l) => l,
+            None => {
+                bevy::log::warn!(
+                    "RunAutomapRules: selected level {:?} not found",
+                    level_id
+                );
+                return;
+            }
+        };
+
+        level
+            .layers
+            .iter()
+            .enumerate()
+            .filter_map(|(layer_idx, layer)| {
+                if let LayerData::Tiles { tiles, .. } = &layer.data {
+                    let cells: HashMap<(u32, u32), Option<u32>> = tiles
+                        .iter()
+                        .enumerate()
+                        .map(|(flat_idx, &tile)| {
+                            let x = (flat_idx as u32) % level.width;
+                            let y = (flat_idx as u32) / level.width;
+                            ((x, y), tile)
+                        })
+                        .collect();
+                    Some((layer_idx, cells))
+                } else {
+                    None // object layers are never modified by automap rules
+                }
+            })
+            .collect()
+    };
+
+    // Clone the automap config to release the immutable borrow on `project`
+    // before taking a mutable borrow for `get_level_mut`.
+    let automap_config = project.automap_config.clone();
+
+    // Apply rules to the level.
+    {
+        let level = match project.get_level_mut(level_id) {
+            Some(l) => l,
+            None => return,
+        };
+        let mut rng = rand::rngs::SmallRng::from_entropy();
+        bevy_map_automap::apply_automap_config(level, &automap_config, &mut rng);
+    }
+
+    // Diff against the before-snapshot to build per-layer change maps.
+    let after_level = match project.get_level(level_id) {
+        Some(l) => l,
+        None => return,
+    };
+
+    let mut layer_changes: HashMap<usize, HashMap<(u32, u32), (Option<u32>, Option<u32>)>> =
+        HashMap::new();
+
+    for (layer_idx, before_cells) in &before_snapshot {
+        if let Some(layer) = after_level.layers.get(*layer_idx) {
+            if let LayerData::Tiles { tiles, .. } = &layer.data {
+                let level_width = after_level.width;
+                let mut cell_changes: HashMap<(u32, u32), (Option<u32>, Option<u32>)> =
+                    HashMap::new();
+                for (flat_idx, &new_tile) in tiles.iter().enumerate() {
+                    let x = (flat_idx as u32) % level_width;
+                    let y = (flat_idx as u32) / level_width;
+                    let old_tile = before_cells.get(&(x, y)).copied().flatten();
+                    if old_tile != new_tile {
+                        cell_changes.insert((x, y), (old_tile, new_tile));
+                    }
+                }
+                if !cell_changes.is_empty() {
+                    layer_changes.insert(*layer_idx, cell_changes);
+                }
+            }
+        }
+    }
+
+    if layer_changes.is_empty() {
+        bevy::log::info!("RunAutomapRules: no changes produced");
+        return;
+    }
+
+    use crate::commands::AutomapCommand;
+    let command = AutomapCommand::new(level_id, layer_changes, "Run Automap Rules");
+    // The changes are already applied above; record without re-executing.
+    history.push_undo(Box::new(command));
+    project.mark_dirty();
+    render_state.needs_rebuild = true;
+
+    bevy::log::info!("RunAutomapRules: applied and recorded to undo history");
 }
 
 /// Handle the "Run Game" action - launches async build with progress display
