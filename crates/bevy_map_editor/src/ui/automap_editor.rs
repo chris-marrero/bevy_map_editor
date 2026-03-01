@@ -336,7 +336,6 @@ fn render_rule_set_column(
             let mut move_down: Option<usize> = None;
             let mut confirm_delete: Option<usize> = None;
             let mut cancel_delete: Option<usize> = None;
-            let do_delete: Option<usize> = None;
 
             for idx in 0..rule_set_count {
                 let name = project.automap_config.rule_sets[idx].name.clone();
@@ -376,23 +375,20 @@ fn render_rule_set_column(
                         });
 
                         // Selectable label for the rule set name.
-                        if ui.selectable_label(selected, &name).clicked() {
-                            if !selected {
-                                editor_state.automap_editor_state.selected_rule_set = Some(idx);
-                                // Clear rule selection when switching rule sets.
-                                editor_state.automap_editor_state.selected_rule = None;
+                        // Capture the response to attach the context menu directly (per Troi spec section 4).
+                        let response = ui.selectable_label(selected, &name);
+                        if response.clicked() && !selected {
+                            editor_state.automap_editor_state.selected_rule_set = Some(idx);
+                            // Clear rule selection when switching rule sets.
+                            editor_state.automap_editor_state.selected_rule = None;
+                        }
+                        response.context_menu(|ui| {
+                            if ui.button("Delete Rule Set").clicked() {
+                                editor_state.automap_editor_state.pending_delete_rule_set =
+                                    Some(idx);
+                                ui.close();
                             }
-                        }
-                    });
-
-                    // Right-click context menu with Delete (per Troi spec section 4).
-                    // The `selectable_label` response has already been consumed above.
-                    // Use a separate invisible area for context menu.
-                    ui.horizontal(|_ui| {}).response.context_menu(|ui| {
-                        if ui.button("Delete Rule Set").clicked() {
-                            editor_state.automap_editor_state.pending_delete_rule_set = Some(idx);
-                            ui.close();
-                        }
+                        });
                     });
                 }
             }
@@ -428,7 +424,6 @@ fn render_rule_set_column(
             if let Some(_idx) = cancel_delete {
                 editor_state.automap_editor_state.pending_delete_rule_set = None;
             }
-            let _ = do_delete; // unused — deletions go through confirm flow
         });
 
     // Rule Set Settings (collapsible, only when a rule set is selected)
@@ -451,7 +446,6 @@ fn render_rule_set_column(
 
                     // Edge Handling combo.
                     ui.horizontal(|ui| {
-                        ui.label("Edge Handling:");
                         egui::ComboBox::from_label("Edge Handling:")
                             .selected_text(edge_handling_label(rule_set.settings.edge_handling))
                             .show_ui(ui, |ui| {
@@ -472,7 +466,6 @@ fn render_rule_set_column(
                     // ESCALATE-03: "Until Stable" is included with the hard-coded cap of 100
                     // iterations (see bevy_map_automap::UNTIL_STABLE_MAX_ITERATIONS).
                     ui.horizontal(|ui| {
-                        ui.label("Apply Mode:");
                         egui::ComboBox::from_label("Apply Mode:")
                             .selected_text(apply_mode_label(rule_set.settings.apply_mode))
                             .show_ui(ui, |ui| {
@@ -882,7 +875,6 @@ fn render_input_brush_palette(
     let state = &mut editor_state.automap_editor_state;
 
     ui.horizontal(|ui| {
-        ui.label("Brush Type:");
         egui::ComboBox::from_label("Brush Type:")
             .selected_text(input_brush_label(state.input_brush))
             .show_ui(ui, |ui| {
@@ -917,7 +909,6 @@ fn render_input_brush_palette(
             .unwrap_or("(none)");
 
         ui.horizontal(|ui| {
-            ui.label("Tile:");
             egui::ComboBox::from_label("Tile:")
                 .selected_text(current_tile_name)
                 .show_ui(ui, |ui| {
@@ -1119,7 +1110,6 @@ fn render_output_brush_palette(
     let state = &mut editor_state.automap_editor_state;
 
     ui.horizontal(|ui| {
-        ui.label("Brush:");
         egui::ComboBox::from_label("Brush:")
             .selected_text(output_brush_label(state.output_brush))
             .show_ui(ui, |ui| {
@@ -1154,7 +1144,6 @@ fn render_output_brush_palette(
             .unwrap_or("(none)");
 
         ui.horizontal(|ui| {
-            ui.label("Tile:");
             egui::ComboBox::from_label("Tile: ")
                 .selected_text(current_tile_name)
                 .show_ui(ui, |ui| {
@@ -1218,7 +1207,6 @@ fn render_layer_mapping_strip(
         let mut pending_output: Option<Uuid> = None;
 
         // Input layer combo.
-        ui.label("Input:");
         ui.add_enabled_ui(has_level, |ui| {
             egui::ComboBox::from_label("Input layer for automapping")
                 .selected_text(input_name)
@@ -1235,7 +1223,6 @@ fn render_layer_mapping_strip(
         ui.add_space(16.0);
 
         // Output layer combo.
-        ui.label("Output:");
         ui.add_enabled_ui(has_level, |ui| {
             egui::ComboBox::from_label("Output layer for automapping")
                 .selected_text(output_name)
