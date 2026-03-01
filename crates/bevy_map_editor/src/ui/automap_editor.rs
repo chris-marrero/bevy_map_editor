@@ -788,6 +788,16 @@ fn render_input_pattern_tab(
         ui.label("rows");
     });
 
+    // Re-read grid dimensions after the resize block. The resize buttons above may have mutated
+    // `half_width`/`half_height` within this same frame; the values captured before `ui.horizontal`
+    // are stale on a resize and must not be used for the snapshot or grid loop.
+    let (half_w, half_h) = {
+        let group = &project.automap_config.rule_sets[rs_idx].rules[r_idx].input_groups[0];
+        (group.half_width, group.half_height)
+    };
+    let cols = 2 * half_w + 1;
+    let rows = 2 * half_h + 1;
+
     // Input grid.
     let center_col = half_w as usize;
     let center_row = half_h as usize;
@@ -801,6 +811,15 @@ fn render_input_pattern_tab(
 
     let mut new_matchers = matchers_snapshot.clone();
     let mut grid_changed = false;
+
+    debug_assert_eq!(
+        matchers_snapshot.len(),
+        (cols * rows) as usize,
+        "matchers length {} does not match grid {}x{}",
+        matchers_snapshot.len(),
+        cols,
+        rows
+    );
 
     for row in 0..rows as usize {
         ui.horizontal(|ui| {
