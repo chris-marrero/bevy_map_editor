@@ -1651,4 +1651,313 @@ mod tests {
             "show_automap_editor must be true after clicking 'Automap Rule Editor...'"
         );
     }
+
+    // ── Grid resize regression tests (PR #4 — OOB panic fix) ─────────────────
+
+    /// Helper: build a bundle with one rule set containing one rule with a 3x3 input group.
+    ///
+    /// The editor state is wired up so the rule is selected and the Input Pattern tab is active.
+    fn automap_editor_with_rule() -> AutomapEditorBundle {
+        use bevy_map_automap::{
+            ApplyMode, CellMatcher, CellOutput, EdgeHandling, InputConditionGroup, OutputAlternative,
+            Rule, RuleSet, RuleSetSettings,
+        };
+        use uuid::Uuid;
+
+        let mut editor_state = EditorState::default();
+        editor_state.show_automap_editor = true;
+
+        let hw: u32 = 1;
+        let hh: u32 = 1;
+        let cell_count = ((2 * hw + 1) * (2 * hh + 1)) as usize;
+
+        let rule = Rule {
+            id: Uuid::new_v4(),
+            name: "Regression Rule".to_string(),
+            input_groups: vec![InputConditionGroup {
+                layer_id: Uuid::nil(),
+                half_width: hw,
+                half_height: hh,
+                matchers: vec![CellMatcher::Ignore; cell_count],
+            }],
+            output_alternatives: vec![OutputAlternative {
+                id: Uuid::new_v4(),
+                layer_id: Uuid::nil(),
+                half_width: hw,
+                half_height: hh,
+                outputs: vec![CellOutput::Ignore; cell_count],
+                weight: 1,
+            }],
+            no_overlapping_output: false,
+        };
+
+        let rule_set = RuleSet {
+            id: Uuid::new_v4(),
+            name: "Regression Set".to_string(),
+            rules: vec![rule],
+            settings: RuleSetSettings {
+                edge_handling: EdgeHandling::Skip,
+                apply_mode: ApplyMode::Once,
+            },
+            disabled: false,
+        };
+
+        let mut project = crate::project::Project::default();
+        project.automap_config.rule_sets.push(rule_set);
+
+        // Point the editor at rule set 0, rule 0, Input Pattern tab.
+        editor_state.automap_editor_state.selected_rule_set = Some(0);
+        editor_state.automap_editor_state.selected_rule = Some(0);
+        editor_state.automap_editor_state.active_tab = super::AutomapEditorTab::InputPattern;
+
+        AutomapEditorBundle { editor_state, project }
+    }
+
+    // ── T-23-1: grow then shrink — no panic ───────────────────────────────────
+
+    /// Regression: growing and shrinking the input grid must not panic.
+    ///
+    /// Sequence:
+    ///   1. Render editor with a 3x3 grid (half_w=1, half_h=1).
+    ///   2. Programmatically grow to half_w=2, half_h=2 — re-render.
+    ///   3. Shrink back to half_w=1, half_h=1 — re-render.
+    ///   4. Shrink below original to half_w=0, half_h=0 — re-render.
+    ///
+    /// No panic across any step is the assertion.
+    #[test]
+    fn test_automap_grid_grow_shrink_no_panic() {
+        let mut harness = harness_for_automap_editor(automap_editor_with_rule());
+        harness.run();
+
+        // Grow: half_w 1 → 2, half_h 1 → 2.
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, 2);
+            super::resize_input_group_rows(group, 2);
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+
+        // Shrink: half_w 2 → 1, half_h 2 → 1.
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, 1);
+            super::resize_input_group_rows(group, 1);
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+
+        // Shrink further: half_w 1 → 0, half_h 1 → 0 (1x1 grid).
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, 0);
+            super::resize_input_group_rows(group, 0);
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+        // Reaching this line without panic is the assertion.
+    }
+
+    // ── T-23-2: interleaved grid and frame re-renders ─────────────────────────
+
+    /// Regression: interleaved grid size changes and re-renders must not panic,
+    /// and matchers length must stay consistent after each mutation.
+    ///
+    /// `egui_kittest` does not expose a viewport resize API; "panel resize" is
+    /// simulated by calling `harness.run()` between each grid mutation, matching
+    /// the real condition: re-render with new grid dimensions already applied.
+    #[test]
+    fn test_automap_grid_resize_interleaved_with_panel_resize() {
+        let mut harness = harness_for_automap_editor(automap_editor_with_rule());
+        harness.run();
+
+        // Five interleaved grow/shrink + re-render cycles.
+        let sequence: &[(u32, u32)] = &[(2, 1), (1, 2), (3, 3), (2, 2), (1, 1)];
+        for &(new_hw, new_hh) in sequence {
+            {
+                let bundle = harness.state_mut();
+                let group =
+                    &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+                super::resize_input_group_cols(group, new_hw);
+                super::resize_input_group_rows(group, new_hh);
+                super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+            }
+            // Simulate "panel has been resized" — re-render with current dimensions.
+            harness.run();
+
+            // Verify length invariant after each cycle.
+            let group = &harness.state().project.automap_config.rule_sets[0].rules[0]
+                .input_groups[0];
+            let expected_len = ((2 * group.half_width + 1) * (2 * group.half_height + 1)) as usize;
+            assert_eq!(
+                group.matchers.len(),
+                expected_len,
+                "After resize to half_w={new_hw}, half_h={new_hh}: matchers.len()={} but expected {expected_len}",
+                group.matchers.len(),
+            );
+        }
+    }
+
+    // ── T-23-3: index bounds invariant — data model unit test ─────────────────
+
+    /// Data model invariant: after every grid mutation, `matchers.len()` must equal
+    /// `(2*half_width+1) * (2*half_height+1)`.
+    ///
+    /// This is a pure data-model test; no egui harness required.
+    #[test]
+    fn test_automap_grid_index_bounds_invariant() {
+        use bevy_map_automap::{CellMatcher, InputConditionGroup};
+        use uuid::Uuid;
+
+        let mut group = InputConditionGroup {
+            layer_id: Uuid::nil(),
+            half_width: 1,
+            half_height: 1,
+            matchers: vec![CellMatcher::Ignore; 9],
+        };
+
+        let steps: &[(u32, u32)] = &[
+            (0, 0), // 1x1
+            (1, 0), // 3x1
+            (0, 1), // 1x3
+            (2, 2), // 5x5
+            (4, 4), // 9x9 (maximum)
+            (3, 2), // 7x5
+            (1, 1), // 3x3
+        ];
+
+        for &(new_hw, new_hh) in steps {
+            super::resize_input_group_cols(&mut group, new_hw);
+            super::resize_input_group_rows(&mut group, new_hh);
+
+            let expected = ((2 * group.half_width + 1) * (2 * group.half_height + 1)) as usize;
+            assert_eq!(
+                group.matchers.len(),
+                expected,
+                "Invariant violated at half_w={}, half_h={}: matchers.len()={} expected={}",
+                group.half_width,
+                group.half_height,
+                group.matchers.len(),
+                expected,
+            );
+        }
+    }
+
+    // ── T-23-4: shrink to minimum and attempt further shrink ──────────────────
+
+    /// Regression: shrinking to the minimum (1x1, half_w=0, half_h=0) and then
+    /// attempting a further shrink must not panic. The further shrink is a no-op
+    /// because `saturating_sub(1)` on 0 returns 0.
+    #[test]
+    fn test_automap_grid_shrink_to_minimum_no_panic() {
+        let mut harness = harness_for_automap_editor(automap_editor_with_rule());
+        harness.run();
+
+        // Start large: grow to half_w=3, half_h=3.
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, 3);
+            super::resize_input_group_rows(group, 3);
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+
+        // Shrink to minimum: half_w=0, half_h=0.
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, 0);
+            super::resize_input_group_rows(group, 0);
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+
+        // Verify at minimum.
+        {
+            let group = &harness.state().project.automap_config.rule_sets[0].rules[0]
+                .input_groups[0];
+            assert_eq!(group.half_width, 0, "Expected half_width=0 at minimum");
+            assert_eq!(group.half_height, 0, "Expected half_height=0 at minimum");
+            assert_eq!(group.matchers.len(), 1, "Expected 1x1=1 matchers at minimum");
+        }
+
+        // Attempt further shrink — saturating_sub(1) on 0 is 0, so this is a no-op.
+        {
+            let bundle = harness.state_mut();
+            let group = &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+            super::resize_input_group_cols(group, group.half_width.saturating_sub(1));
+            super::resize_input_group_rows(group, group.half_height.saturating_sub(1));
+            super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+        }
+        harness.run();
+
+        // Must still be at minimum, not panic.
+        let group =
+            &harness.state().project.automap_config.rule_sets[0].rules[0].input_groups[0];
+        assert_eq!(group.half_width, 0, "Still half_width=0 after no-op shrink");
+        assert_eq!(group.half_height, 0, "Still half_height=0 after no-op shrink");
+        assert_eq!(group.matchers.len(), 1, "Still 1 matcher after no-op shrink");
+    }
+
+    // ── T-23-5: rapid alternating grow/shrink sequence ────────────────────────
+
+    /// Regression: ten iterations of alternating grow/shrink must not panic,
+    /// and the final state must be self-consistent (matchers length matches dimensions).
+    #[test]
+    fn test_automap_grid_rapid_resize_sequence() {
+        let mut harness = harness_for_automap_editor(automap_editor_with_rule());
+        harness.run();
+
+        for i in 0..10u32 {
+            let (new_hw, new_hh) = if i % 2 == 0 {
+                // Grow step — increment within max of 4.
+                let bundle = harness.state();
+                let cur_hw = bundle.project.automap_config.rule_sets[0].rules[0]
+                    .input_groups[0]
+                    .half_width;
+                let cur_hh = bundle.project.automap_config.rule_sets[0].rules[0]
+                    .input_groups[0]
+                    .half_height;
+                ((cur_hw + 1).min(4), (cur_hh + 1).min(4))
+            } else {
+                // Shrink step — decrement, floor at 0.
+                let bundle = harness.state();
+                let cur_hw = bundle.project.automap_config.rule_sets[0].rules[0]
+                    .input_groups[0]
+                    .half_width;
+                let cur_hh = bundle.project.automap_config.rule_sets[0].rules[0]
+                    .input_groups[0]
+                    .half_height;
+                (cur_hw.saturating_sub(1), cur_hh.saturating_sub(1))
+            };
+
+            {
+                let bundle = harness.state_mut();
+                let group =
+                    &mut bundle.project.automap_config.rule_sets[0].rules[0].input_groups[0];
+                super::resize_input_group_cols(group, new_hw);
+                super::resize_input_group_rows(group, new_hh);
+                super::sync_output_grid_dims(&mut bundle.project, 0, 0);
+            }
+            harness.run();
+        }
+
+        // Final consistency check.
+        let group =
+            &harness.state().project.automap_config.rule_sets[0].rules[0].input_groups[0];
+        let expected_len = ((2 * group.half_width + 1) * (2 * group.half_height + 1)) as usize;
+        assert_eq!(
+            group.matchers.len(),
+            expected_len,
+            "Final state: matchers.len()={} but expected {} for half_w={}, half_h={}",
+            group.matchers.len(),
+            expected_len,
+            group.half_width,
+            group.half_height,
+        );
+    }
 }
