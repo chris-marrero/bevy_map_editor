@@ -29,9 +29,7 @@ Maintained by the Lead. SEs read this; they do not write to it.
 
 ### Blocked
 
-| ID | Assigned | Status | Blocked By | Description |
-|---|---|---|---|---|
-| T-05 | worf | PENDING | T-10 | Write and run tests for automapping engine + editor integration. Blocked on Data GO on PR #2. |
+(none)
 
 ### Completed
 
@@ -50,6 +48,7 @@ Maintained by the Lead. SEs read this; they do not write to it.
 | T-13 | data | DONE | Layer mapping persistence confirmed in-scope. DEBT entry added. T-17 assigned to Wesley. |
 | T-14 | riker | DONE | Session commit procedure added to CLAUDE.md. remmick.md ratified. Pushed to main. |
 | T-16 | lead | DONE | Rebase + merge authorized. PR #3 merged to main (4aa06c4). |
+| T-05 | worf | DONE | 5 engine tests in apply.rs (total 15), 6 editor tests in automap_editor.rs (total 40). Untestable paths documented in testing.md. |
 | T-17 | wesley | DONE | Layer combo wiring complete in automap_editor.rs — all 5 locations fixed. cargo check passes. Included in PR #2. |
 | T-18 | wesley | DONE | sprint/automapping/wesley-ui rebased onto main. Pushed. PR #2 open: https://github.com/chris-marrero/bevy_map_editor/pull/2 |
 

@@ -2338,3 +2338,54 @@ The numeric input panel implementation by Barclay conforms to the UX spec. There
 **Next action:** Worf proceeds with snapshot tests. Worf must account for the trailing-space label issue in Advisory A when writing label-based assertions — or Barclay removes the padding first (recommended).
 **Open questions:** None.
 **Blockers:** None.
+
+---
+
+## Automapping Tests — T-05
+
+**Author:** Test Engineer
+**Date:** 2026-03-01
+**Status:** Complete
+
+### Engine Tests (bevy_map_automap — apply.rs)
+
+5 new tests added to the existing `#[cfg(test)] mod tests` block in
+`crates/bevy_map_automap/src/apply.rs`. Total engine tests: 15.
+
+| Test | Description |
+|---|---|
+| `apply_automap_config_empty_ruleset_no_panic` | Smoke test with a real Level and empty RuleSet — must not panic. |
+| `apply_automap_config_valid_layer_id_writes_to_correct_layer` | Rule targeting a valid layer_id fires and writes Tile(99) to matched cell on layer 0. |
+| `apply_automap_config_nonexistent_layer_id_silently_skipped` | Ghost UUID — level unchanged, no panic. |
+| `find_layer_index_returns_correct_index` | Returns Some(0) for the first layer's UUID. |
+| `find_layer_index_returns_none_for_missing_uuid` | Returns None for an unknown UUID. |
+
+### Editor UI Tests (bevy_map_editor — automap_editor.rs)
+
+6 new tests added in a new `#[cfg(test)] mod tests` block at the bottom of
+`crates/bevy_map_editor/src/ui/automap_editor.rs`. Total editor tests: 40.
+
+A local `AutomapEditorBundle` struct and `harness_for_automap_editor` builder
+follow the `TilesetEditorBundle` pattern from `testing.rs`.
+
+| Test | Description |
+|---|---|
+| `automap_editor_renders_without_panic_default_project` | Smoke test — renders with default project, `show_automap_editor = true`. |
+| `automap_editor_add_rule_set_button_present` | `"+ Add"` button discoverable in AccessKit tree. |
+| `automap_editor_add_rule_set_button_adds_rule_set` | Clicking `"+ Add"` increments `rule_sets.len()` from 0 to 1. |
+| `automap_editor_layer_combo_labels_present_with_level` | Input and output combo labels in AccessKit tree when level with layers present. |
+| `automap_editor_layer_combo_labels_present_without_level` | Both combo labels present even when disabled (`target_level = None`). |
+| `menu_bar_automap_rule_editor_sets_show_flag` | Tools → `"Automap Rule Editor..."` sets `show_automap_editor = true`. |
+
+### Untestable Paths
+
+The following behaviors cannot be tested with the current `egui_kittest` rig
+(no GPU, no simulated drag events, no AccessKit-visible dropdown state).
+
+| Path | Why Untestable |
+|---|---|
+| Grid cell drag (input/output pattern painting) | egui_kittest has no drag simulation API. Click on a button cell works; drag-to-paint does not. |
+| Run-rules end-to-end through `PendingAction` | `apply_automap_config` is called via `pending_action` dispatch in `ui/mod.rs`, which requires a full Bevy world + system execution. Not reachable from a headless egui harness. |
+| Status label text after Run Rules | Status is set after the full dispatch cycle (same blocker as above). The label is readable in AccessKit once set, but the dispatch cannot be triggered in test. |
+| Right-click context menu on rule set name | `context_menu()` in egui does not emit AccessKit nodes before the menu is opened. Right-click simulation is not available in egui_kittest. |
+| ComboBox dropdown item selection | `show_ui()` content is not rendered (and therefore not in the AccessKit tree) until the combo is opened. Opening a combo requires a click that egui_kittest does not support for combo popups (popup layer is separate from the main window). |

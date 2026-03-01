@@ -513,4 +513,159 @@ mod tests {
         ];
         assert_eq!(select_output_alternative(&alts, &mut rng), Some(0));
     }
+
+    // ── Integration tests: apply_automap_config and find_layer_index ──────────
+
+    use bevy_map_core::Level;
+
+    fn make_tile_level(width: u32, height: u32) -> Level {
+        use bevy_map_core::Layer;
+        let mut level = Level::new("test".to_string(), width, height);
+        let layer = Layer::new_tile_layer("Layer0".to_string(), Uuid::nil(), width, height);
+        level.add_layer(layer);
+        level
+    }
+
+    #[test]
+    fn apply_automap_config_empty_ruleset_no_panic() {
+        use crate::{AutomapConfig, RuleSet, RuleSetSettings};
+        let mut level = make_tile_level(4, 4);
+        let config = AutomapConfig {
+            rule_sets: vec![RuleSet {
+                id: Uuid::new_v4(),
+                name: "Empty".to_string(),
+                rules: Vec::new(),
+                settings: RuleSetSettings::default(),
+                disabled: false,
+            }],
+        };
+        let mut rng = seeded_rng();
+        // Must not panic on an empty rule set.
+        apply_automap_config(&mut level, &config, &mut rng);
+    }
+
+    #[test]
+    fn apply_automap_config_valid_layer_id_writes_to_correct_layer() {
+        use crate::{
+            AutomapConfig, CellMatcher, CellOutput, InputConditionGroup, OutputAlternative, Rule,
+            RuleSet, RuleSetSettings,
+        };
+
+        let mut level = make_tile_level(4, 4);
+        let layer_id = level.layers[0].id;
+
+        // Rule: center cell matches Ignore (always) → write Tile(99).
+        let rule = Rule {
+            id: Uuid::new_v4(),
+            name: "write99".to_string(),
+            input_groups: vec![InputConditionGroup {
+                layer_id,
+                half_width: 0,
+                half_height: 0,
+                matchers: vec![CellMatcher::Ignore],
+            }],
+            output_alternatives: vec![OutputAlternative {
+                id: Uuid::new_v4(),
+                layer_id,
+                half_width: 0,
+                half_height: 0,
+                outputs: vec![CellOutput::Tile(99)],
+                weight: 1,
+            }],
+            no_overlapping_output: false,
+        };
+
+        let config = AutomapConfig {
+            rule_sets: vec![RuleSet {
+                id: Uuid::new_v4(),
+                name: "RS".to_string(),
+                rules: vec![rule],
+                settings: RuleSetSettings::default(),
+                disabled: false,
+            }],
+        };
+
+        let mut rng = seeded_rng();
+        apply_automap_config(&mut level, &config, &mut rng);
+
+        // Cell (0, 0) on layer 0 must be Some(99).
+        assert_eq!(
+            level.get_tile(0, 0, 0),
+            Some(99),
+            "Rule should have written Tile(99) to layer 0 cell (0,0)"
+        );
+    }
+
+    #[test]
+    fn apply_automap_config_nonexistent_layer_id_silently_skipped() {
+        use crate::{
+            AutomapConfig, CellMatcher, CellOutput, InputConditionGroup, OutputAlternative, Rule,
+            RuleSet, RuleSetSettings,
+        };
+
+        let mut level = make_tile_level(4, 4);
+        let ghost_id = Uuid::new_v4(); // not a layer in this level
+
+        let rule = Rule {
+            id: Uuid::new_v4(),
+            name: "ghost".to_string(),
+            input_groups: vec![InputConditionGroup {
+                layer_id: ghost_id,
+                half_width: 0,
+                half_height: 0,
+                matchers: vec![CellMatcher::Ignore],
+            }],
+            output_alternatives: vec![OutputAlternative {
+                id: Uuid::new_v4(),
+                layer_id: ghost_id,
+                half_width: 0,
+                half_height: 0,
+                outputs: vec![CellOutput::Tile(42)],
+                weight: 1,
+            }],
+            no_overlapping_output: false,
+        };
+
+        let config = AutomapConfig {
+            rule_sets: vec![RuleSet {
+                id: Uuid::new_v4(),
+                name: "ghost_rs".to_string(),
+                rules: vec![rule],
+                settings: RuleSetSettings::default(),
+                disabled: false,
+            }],
+        };
+
+        let mut rng = seeded_rng();
+        // Must not panic; level must remain all-empty.
+        apply_automap_config(&mut level, &config, &mut rng);
+
+        assert_eq!(
+            level.get_tile(0, 0, 0),
+            None,
+            "Ghost layer UUID: level must be unchanged"
+        );
+    }
+
+    #[test]
+    fn find_layer_index_returns_correct_index() {
+        let level = make_tile_level(2, 2);
+        let layer_id = level.layers[0].id;
+        assert_eq!(
+            find_layer_index(&level, layer_id),
+            Some(0),
+            "find_layer_index must return Some(0) for the first layer's UUID"
+        );
+    }
+
+    #[test]
+    fn find_layer_index_returns_none_for_missing_uuid() {
+        let level = make_tile_level(2, 2);
+        let unknown = Uuid::new_v4();
+        assert_eq!(
+            find_layer_index(&level, unknown),
+            None,
+            "find_layer_index must return None for an unknown UUID"
+        );
+    }
 }

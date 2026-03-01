@@ -1463,3 +1463,173 @@ fn output_brush_label(b: OutputBrushType) -> &'static str {
         OutputBrushType::Tile => "Tile",
     }
 }
+
+// ─── Tests ────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use egui_kittest::kittest::Queryable;
+    use egui_kittest::Harness;
+
+    use bevy_map_core::{Layer, Level};
+    use uuid::Uuid;
+
+    use crate::project::Project;
+    use crate::testing::{harness_for_menu_bar, menu_bar_state_empty_project};
+    use crate::EditorState;
+
+    use super::render_automap_editor;
+
+    // ── Bundle + harness builder ──────────────────────────────────────────────
+
+    /// Bundle for `render_automap_editor` — mirrors `TilesetEditorBundle` from testing.rs.
+    struct AutomapEditorBundle {
+        editor_state: EditorState,
+        project: Project,
+    }
+
+    /// Build a `Harness` that renders the automap editor window.
+    ///
+    /// The harness sets `show_automap_editor = true` before the first frame so
+    /// the window is actually rendered. `cache` is always `None`.
+    fn harness_for_automap_editor(state: AutomapEditorBundle) -> Harness<'static, AutomapEditorBundle> {
+        Harness::new_state(
+            |ctx, bundle: &mut AutomapEditorBundle| {
+                render_automap_editor(ctx, &mut bundle.editor_state, &mut bundle.project);
+            },
+            state,
+        )
+    }
+
+    /// Default bundle: empty project, `show_automap_editor = true`.
+    fn automap_editor_default() -> AutomapEditorBundle {
+        let mut editor_state = EditorState::default();
+        editor_state.show_automap_editor = true;
+        AutomapEditorBundle {
+            editor_state,
+            project: Project::default(),
+        }
+    }
+
+    /// Bundle with a level that has one tile layer — used for layer combo label tests.
+    fn automap_editor_with_level() -> AutomapEditorBundle {
+        let mut editor_state = EditorState::default();
+        editor_state.show_automap_editor = true;
+
+        let mut project = Project::default();
+        let mut level = Level::new("TestLevel".to_string(), 4, 4);
+        let layer = Layer::new_tile_layer("Tiles".to_string(), Uuid::nil(), 4, 4);
+        let layer_id = layer.id;
+        let level_id = level.id;
+        level.add_layer(layer);
+        project.levels.push(level);
+
+        // Point the editor state at this level and layer.
+        editor_state.automap_editor_state.target_level = Some(level_id);
+        editor_state.automap_editor_state.selected_input_layer = Some(layer_id);
+        editor_state.automap_editor_state.selected_output_layer = Some(layer_id);
+
+        AutomapEditorBundle { editor_state, project }
+    }
+
+    // ── Engine integration smoke test (render only) ───────────────────────────
+
+    /// Smoke test: render with default project and `show_automap_editor = true`.
+    /// Passes if no panic occurs during rendering.
+    #[test]
+    fn automap_editor_renders_without_panic_default_project() {
+        let mut harness = harness_for_automap_editor(automap_editor_default());
+        harness.run();
+    }
+
+    // ── "Add Rule Set" button present ─────────────────────────────────────────
+
+    /// The "+ Add" button in column 1 must be discoverable in the AccessKit tree.
+    #[test]
+    fn automap_editor_add_rule_set_button_present() {
+        let mut harness = harness_for_automap_editor(automap_editor_default());
+        harness.run();
+        // The button label in render_rule_sets_column is "+ Add"
+        assert!(
+            harness.query_by_label("+ Add").is_some(),
+            "Expected '+ Add' button to be present in the AccessKit tree"
+        );
+    }
+
+    // ── Clicking "Add Rule Set" increments rule_sets.len() ───────────────────
+
+    /// Clicking the "+ Add" button must add one rule set (0 → 1).
+    #[test]
+    fn automap_editor_add_rule_set_button_adds_rule_set() {
+        let mut harness = harness_for_automap_editor(automap_editor_default());
+        // Precondition
+        assert_eq!(harness.state().project.automap_config.rule_sets.len(), 0);
+        harness.run();
+        harness.get_by_label("+ Add").click();
+        harness.run();
+        assert_eq!(
+            harness.state().project.automap_config.rule_sets.len(),
+            1,
+            "Clicking '+ Add' must add one rule set"
+        );
+    }
+
+    // ── Layer combo labels present with level ─────────────────────────────────
+
+    /// When a level with layers is selected, both combo labels must be in the AccessKit tree.
+    #[test]
+    fn automap_editor_layer_combo_labels_present_with_level() {
+        let mut harness = harness_for_automap_editor(automap_editor_with_level());
+        harness.run();
+        assert!(
+            harness.query_by_label("Input layer for automapping").is_some(),
+            "Expected 'Input layer for automapping' label in AccessKit tree"
+        );
+        assert!(
+            harness.query_by_label("Output layer for automapping").is_some(),
+            "Expected 'Output layer for automapping' label in AccessKit tree"
+        );
+    }
+
+    // ── Layer combo labels present without level ──────────────────────────────
+
+    /// Even when no level is selected (combos disabled), both combo labels must still
+    /// appear in the AccessKit tree (disabled widgets remain in the tree).
+    #[test]
+    fn automap_editor_layer_combo_labels_present_without_level() {
+        let mut harness = harness_for_automap_editor(automap_editor_default());
+        // Precondition: no target_level
+        assert!(harness.state().editor_state.automap_editor_state.target_level.is_none());
+        harness.run();
+        assert!(
+            harness.query_by_label("Input layer for automapping").is_some(),
+            "Expected 'Input layer for automapping' label even when disabled"
+        );
+        assert!(
+            harness.query_by_label("Output layer for automapping").is_some(),
+            "Expected 'Output layer for automapping' label even when disabled"
+        );
+    }
+
+    // ── Menu bar: Tools → Automap Rule Editor sets show_automap_editor ────────
+
+    /// Clicking Tools → "Automap Rule Editor..." must set `show_automap_editor = true`.
+    #[test]
+    fn menu_bar_automap_rule_editor_sets_show_flag() {
+        let mut state = menu_bar_state_empty_project();
+        // Precondition: flag is off.
+        state.editor_state.show_automap_editor = false;
+        let mut harness = harness_for_menu_bar(state);
+        harness.run();
+        // Open the Tools menu.
+        harness.get_by_label("Tools").click();
+        harness.run();
+        // Click the menu item.
+        harness.get_by_label("Automap Rule Editor...").click();
+        harness.run();
+        assert!(
+            harness.state().editor_state.show_automap_editor,
+            "show_automap_editor must be true after clicking 'Automap Rule Editor...'"
+        );
+    }
+}
