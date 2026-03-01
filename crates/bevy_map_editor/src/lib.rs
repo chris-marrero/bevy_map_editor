@@ -55,9 +55,10 @@ use project::Project;
 use render::MapRenderPlugin;
 use tools::EditorToolsPlugin;
 use ui::{
-    AnimationEditorState, CodePreviewDialogState, DialogueEditorState, EditorTool, EditorUiPlugin,
-    EntityPaintState, GameSettingsDialogState, PendingAction, SchemaEditorState, Selection,
-    SpriteSheetEditorState, TerrainPaintState, TilesetEditorState, ToolMode,
+    AnimationEditorState, AutomapEditorState, CodePreviewDialogState, DialogueEditorState,
+    EditorTool, EditorUiPlugin, EntityPaintState, GameSettingsDialogState, PendingAction,
+    SchemaEditorState, Selection, SpriteSheetEditorState, TerrainPaintState, TilesetEditorState,
+    ToolMode,
 };
 
 /// Error types for asset path handling
@@ -611,6 +612,10 @@ pub struct EditorState {
     pub show_tileset_editor: bool,
     pub tileset_editor_state: TilesetEditorState,
 
+    // Automap Rule Editor
+    pub show_automap_editor: bool,
+    pub automap_editor_state: AutomapEditorState,
+
     // SpriteSheet Editor (for spritesheet setup: image loading, grid config)
     pub show_spritesheet_editor: bool,
     pub spritesheet_editor_state: SpriteSheetEditorState,
@@ -791,6 +796,9 @@ impl Default for EditorState {
 
             show_tileset_editor: false,
             tileset_editor_state: TilesetEditorState::default(),
+
+            show_automap_editor: false,
+            automap_editor_state: AutomapEditorState::default(),
 
             show_spritesheet_editor: false,
             spritesheet_editor_state: SpriteSheetEditorState::new(),
