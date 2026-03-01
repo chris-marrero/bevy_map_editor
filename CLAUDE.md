@@ -24,6 +24,8 @@ Testing: `egui_kittest` (introduced in egui 0.30) — AccessKit-based UI testing
 | SE-2 | Wesley Crusher | Speed, pattern adherence, clean output. | Read only |
 | SE-3 | Reg Barclay | Thoroughness, edge cases, defensive code. | Read only |
 | SE-4 | Ro Laren | Skepticism, requirement validation. | Read only |
+| Protocol Officer | Cmdr. Riker | Sole author of CLAUDE.md and all agent prompts. Sprint-close only. | Read + Write |
+| Sprint Analyst | Guinan | Reads incident_log, writes sprint-close report. Sprint-close only, before Riker. | Read only |
 
 ### Multiple SE Instances
 
@@ -52,6 +54,22 @@ Before any parallel SE begins coding, Data must produce a file-ownership table: 
 Data is responsible for enforcing this — if parallel SEs are assigned overlapping files, Data must catch it at proposal review before coding starts.
 
 **Picard's responsibility:** Include the worktree path or file-ownership scope in the task prompt for every SE assigned to a parallel sprint. Do not leave this to the SEs to negotiate.
+
+### Branch Hygiene: Agent Docs Stay on Main
+
+Agent documentation files must not travel on SE feature branches. The following files belong on main only — SE branches must not contain commits that modify them:
+
+- `agents/tasks.md`
+- `agents/architecture.md` (and `agents/architecture/`)
+- `agents/testing.md`
+- `agents/retro_log.md`
+- `agents/incident_log.md`
+- `agents/ship_log/`
+- `agents/lead_notes.md`
+- `agents/permissions.md`
+- `agents/guinan_report.md`
+
+**Enforcement:** This is item (e) in the SE pre-PR submission checklist. SEs verify before submitting. Data verifies during code review. If an agent doc appears in `git diff main..HEAD --name-only`, the SE removes it from the branch history before creating the PR.
 
 ### Choosing the Right SE (Data advises, Picard spawns)
 
@@ -111,6 +129,10 @@ Each SE works on a dedicated feature branch and submits a PR when their implemen
 
 **Conflict resolution order:** Data merges PRs in the order they are ready. An SE whose PR conflicts after a merge rebases and notifies Data via task update.
 
+**Destructive git operations — mandatory pre-check:** Before running any destructive git command (`git reset --hard`, `git checkout -- .`, `git restore .`, `git clean -f`, or any forced branch switch), run `git status` first. If the working tree is not clean — any untracked or modified files — commit or stash the work (and verify the stash succeeded) before proceeding. Picard must not authorize a branch switch without confirming the working tree is clean. This applies to all agents and to Lead.
+
+**Pre-`gh pr create` check:** Before running `gh pr create`, run `gh pr list --head <branch>`. If a PR already exists, update it — do not create a duplicate. If you just ran a force-push, wait 5 seconds before creating or updating a PR.
+
 ---
 
 ### Sprint Launch Protocol
@@ -121,7 +143,7 @@ Each SE works on a dedicated feature branch and submits a PR when their implemen
 - **Troi** (UX Designer) — writes interaction spec. Any sprint touching UI or visible output requires Troi.
 - **Data** (Sr SE) — technical authority. Reviews SE proposals before coding begins. Reviews all code before it goes to Worf. Does not write code. Does not write tests.
 - **SE persona(s)** (Geordi/Wesley/Barclay/Ro) — chosen by Data's recommendation. Propose APIs/approach to Data before coding. Write code.
-- **Worf** (Test Engineer) — writes and runs tests. Runs only after Data has reviewed SE output. Does not approve code — that is Data's job. Worf's approval = tests pass.
+- **Worf** (Test Engineer) — spawned at sprint start alongside all other agents. Before implementation is complete, Worf reads Troi's spec, writes a test plan, and identifies the accessibility label requirements he will need from the SE. He communicates these to the SE before implementation begins — early enough to influence how widgets are built. He does not write actual test code until Data gives GO on the SE implementation.
 
 **Agent free-time rule:** When an agent has no assigned tasks, they may propose tasks within the current sprint scope only. No out-of-scope work. Proposed tasks go on the task list and must be approved by the appropriate supervisor before work begins.
 
@@ -146,6 +168,7 @@ Each SE works on a dedicated feature branch and submits a PR when their implemen
 - Skipping Worf because "Data already wrote tests." Data does not write tests. Ever.
 - Picard editing production files directly for any reason.
 - Spawning agents sequentially when they could start in parallel.
+- **Spawning Riker or Guinan during an active sprint.** Riker and Guinan are sprint-close agents. They may not be spawned while a sprint is in progress. If a process issue arises mid-sprint that appears to require Riker, Picard notes it for sprint close and defers. If unsure whether an issue requires Riker now vs. at sprint close — always defer to sprint close.
 
 ### Sprint Launch Escalation
 
@@ -171,8 +194,10 @@ The user sets milestones. The Lead and team set sprints to reach them. When the 
 1. Update `agents/architecture.md`: mark resolved DEBT items, update Session Status.
 2. Update `agents/retro_log.md`: close the sprint entry, add any late-discovered findings.
 3. Verify the task list is empty or all remaining tasks are correctly deferred.
-4. Update CLAUDE.md if any protocols or conventions changed this sprint.
-5. Deliver to user:
+4. **Session commit check:** Run `git status agents/`. If any agent files are untracked or modified, commit them to main before proceeding. Do not close a sprint with untracked agent files.
+5. **Spawn Guinan** — she reads `agents/incident_log.md` and the last ship_log mission file, then writes her sprint-close report to `agents/guinan_report.md`. Guinan also clears `agents/incident_log.md` (reset to empty template).
+6. **Spawn Riker** — he reads Guinan's report, then updates CLAUDE.md and agent prompt files per her recommendations. Riker updates the ship_log mission status to CLOSED and commits all changes to main.
+7. Deliver to user:
    - Full report with changed files or diff (whichever is more appropriate)
    - All documentation generated by engineers (architecture doc updates, API docs, etc.)
    - Retrospective summary
@@ -289,6 +314,40 @@ The DEBT table in `agents/architecture.md` is the canonical record of known tech
 
 **Lead's role:** At sprint close, verify the DEBT table reflects the actual state of in-flight work. If entries are missing and stubs are live, create a task for Data to audit and add them before the sprint is marked complete.
 
+### Incident Log (`agents/incident_log.md`)
+
+`agents/incident_log.md` is the sprint's failure record. Every agent appends to it when a failure state occurs. Picard appends to it when the user makes a correction that should not have been necessary.
+
+**What counts as a failure state:** Lost work (uncommitted changes destroyed), a blocking error that required mid-sprint recovery, a destructive operation run on uncommitted work, a missing import that caused compile failure, an agent doc file committed to an SE branch, a PR submitted with undocumented stubs, a PR duplicate created by accident, or any other incident that cost the team rework or time.
+
+**Mandatory append rule:** Any agent who experiences or causes a failure state must append an entry to `agents/incident_log.md` immediately. Do not wait. Do not assume someone else will log it.
+
+**Picard's logging responsibility:** When the user makes a correction that the crew should have self-corrected — when the user has to tell Picard something that the protocol should have prevented — Picard appends a USER_CORRECTION entry to `agents/incident_log.md`.
+
+**Guinan's role:** At sprint close, Guinan reads the full log and writes her analysis report. She then clears the log (reset to empty template). Historical record lives in Guinan's reports and the ship_log.
+
+**Entry format:**
+```
+### [SPRINT NAME] — [DATE] — [TYPE]: [SHORT TITLE]
+**Who:** <agent or user>
+**What happened:** <factual description>
+**Impact:** <what was blocked, broken, or wasted>
+**Resolved by:** <how it was fixed, or OPEN>
+```
+Types: PROCESS | TECHNICAL | BLOCKED | USER_CORRECTION
+
+### Ship Log (`agents/ship_log/`)
+
+The ship log is the mission archive. Each sprint gets one file: `agents/ship_log/mission N - <description>.md`.
+
+**Format:** Numbered sequentially. File name: `mission N - <short description>.md` (lowercase, spaces allowed). Example: `mission 2 - automapping.md`.
+
+**Contents:** What was built, who built it, current blockers, protocol findings, open debt, and a sprint close summary. Status is IN PROGRESS during the sprint; Riker changes it to CLOSED at sprint close.
+
+**Maintained by:** The file is created at sprint start (by Lead or Data). Engineers append open debt and blockers as they arise. Riker writes the sprint close summary.
+
+**At sprint start:** Picard creates the mission file for the new sprint with Status: IN PROGRESS. Reference the prior mission file number so the sequence is clear.
+
 ### Permission Management
 
 The Lead maintains a permission list at `agents/permissions.md`. This records permissions previously granted by the user (e.g., "run cargo test", "write to agents/ files", "create new source files").
@@ -302,10 +361,20 @@ The Lead maintains a permission list at `agents/permissions.md`. This records pe
 
 ## Key Files
 
+### Agent Operations
 - `agents/architecture.md` — Living architecture doc, maintained by Sr SE
+- `agents/architecture/sprint_log.md` — Sprint artifact archive, maintained by Sr SE
 - `agents/testing.md` — Testing procedures and conventions, maintained by Test Engineer
 - `agents/retro_log.md` — Sprint retrospective log, maintained by Lead
-- `.claude/agents/` — Agent prompt definitions
+- `agents/lead_notes.md` — Lead's session scratchpad (read at every session start)
+- `agents/tasks.md` — Active task list
+- `agents/permissions.md` — Granted permissions, maintained by Lead/Riker
+- `agents/incident_log.md` — Sprint failure log; all agents append; Guinan clears at sprint close
+- `agents/ship_log/` — Mission archive; one file per sprint (e.g., `mission 2 - automapping.md`)
+- `agents/guinan_report.md` — Guinan's sprint-close analysis; Riker reads before updating protocol
+- `agents/` — All agent prompt files (Riker is sole author)
+
+### Source Code
 - `project/mod.rs` — Project struct
 - `commands/command.rs` — BatchTileCommand, AutomapCommand, CommandHistory
 - `commands/shortcuts.rs` — Keyboard shortcuts → PendingAction

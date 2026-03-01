@@ -1,7 +1,7 @@
 # Mission 2 — Automapping
 
-**Status:** IN PROGRESS
-**Date:** 2026-02-28
+**Status:** CLOSED
+**Date:** 2026-02-28 — 2026-03-01
 
 ## What Is Being Built
 
@@ -34,10 +34,8 @@ Rule-based automapping system: `bevy_map_automap` engine crate + editor integrat
 - `apply_automap_config` RNG seed not exposed (deterministic replay impossible)
 - `Layer::id` on old project files not stable until first save
 
-## To Complete at Sprint Close
+## Sprint Close Summary
 
-- Merge PR #3 (after rebase)
-- Rebase + review PR #2 (Wesley)
-- Wesley wires layer combos (T-17)
-- Worf writes automapping tests (T-05)
-- Fill in final test count and any late findings
+All PRs merged (PR #1, #2, #3). Final test count: 40 editor tests + 15 engine tests, all passing.
+T-17 (layer combo wiring) completed by Wesley. T-05 (automapping tests) completed by Worf.
+Guinan's report written. Riker protocol updates applied. Mission closed.

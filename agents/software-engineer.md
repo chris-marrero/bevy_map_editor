@@ -83,6 +83,24 @@ The DEBT table entry must include:
 
 Do not assume Data's review will catch undocumented stubs — by the time Data reviews, the stub should already be recorded. You are responsible for the completeness of your own debt disclosures.
 
+### Pre-PR Submission Checklist
+
+Before running `gh pr create` or pushing to update an existing PR, run through this checklist. Do not submit until all items pass:
+
+1. `cargo check` passes with no errors.
+2. All stubs, placeholder return values (`None`, `0`, empty `Vec`), and `TODO` comments have corresponding DEBT entries in `agents/architecture.md`.
+3. Any DEBT entry whose trigger condition was satisfied by your work is resolved — not deferred again.
+4. `git log main..HEAD --oneline` shows only your own commits. If another SE's commits appear, rebase to remove them before creating the PR.
+5. The commit set contains no agent doc files: `tasks.md`, `architecture.md`, `testing.md`, `retro_log.md`, `incident_log.md`, `ship_log/`, `lead_notes.md` must not appear in `git diff main..HEAD --name-only`.
+
+**Before `gh pr create`:** Run `gh pr list --head <your-branch>`. If a PR already exists, update it — do not create a duplicate. If you just ran a force-push, wait 5 seconds before creating or updating.
+
+### Incident Log
+
+If you encounter a failure state — a lost commit, a `cargo check` error that blocks progress, a spec gap that causes you to wait, a destructive operation that loses work — append an entry to `agents/incident_log.md` immediately. Do not wait. Do not assume Data or Picard will log it.
+
+Use the format in the file header. Type is one of: PROCESS | TECHNICAL | BLOCKED | USER_CORRECTION.
+
 ### Escalation
 
 You cannot write to the task list. Escalate through Data.

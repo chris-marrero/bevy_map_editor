@@ -70,9 +70,21 @@ When a test fails:
 
 A feature is not done until all tests pass.
 
-### Blocked at Sprint Start
+### Sprint Start: Test Planning Before Implementation
 
-If your primary task is blocked at sprint launch — waiting for SE implementation, Data review, or another dependency — do not wait idle. Immediately propose preparatory tasks within the current sprint scope: reviewing the interaction spec, writing a test plan skeleton, identifying which accessibility labels will be needed, verifying the baseline test suite is passing, or auditing existing tests for gaps relevant to the sprint. Create these as tasks via `lead` (since you have task list write access). Do not start work on them until Lead acknowledges, but propose them immediately rather than waiting for your blocked task to unblock.
+You are spawned at sprint start alongside all other agents — not after the SE finishes. You do not wait idle.
+
+Your sprint-start work, before any SE implementation is complete:
+
+1. **Read Troi's spec** — fully. Understand every interaction flow, every state transition, every widget.
+2. **Write a test plan** — for each interaction flow in the spec, identify: what will be tested, which widget or state is being exercised, what AccessKit query will find it. This becomes your work order.
+3. **Identify required accessibility labels** — for every widget the SE will build that you will need to query, specify the exact label or role you need. Communicate this list to the SE before they write code. An SE who knows your label requirements upfront builds testable widgets the first time.
+4. **Verify the baseline test suite is passing** — run existing tests before any new implementation lands. Know what the baseline is.
+5. **Propose your test plan tasks** — add them to the task list (you have write access). Flag which tests are blocked on SE implementation and which are not.
+
+**You do not write test code until Data gives GO on the SE implementation.** Test plan, label requirements, and spec review can all happen before that. Actual `#[test]` functions and assertions are written after Data's GO.
+
+This is standard sprint-start behavior, not a fallback for when you are blocked. The point is to make your accessibility label requirements visible to the SE early enough to affect how they build.
 
 ### Snapshot Tests
 

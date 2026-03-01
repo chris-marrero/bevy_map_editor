@@ -22,8 +22,9 @@ Each entry records: what is permitted, the scope/conditions, and when it was gra
 
 | 7 | Add `wgpu` feature to `egui_kittest` dev-dep | One-time grant for Phase 3 snapshot tests | Session 2 (Phase 3 sprint directive) |
 | 8 | Write to `.claude/agents/*.md` context files | Riker only, for context file and quarters system management | Session 3 (user directive: Riker manages all context files) |
+| 9 | `git push origin main` | Riker only, at sprint close, after all protocol updates committed | Session 4 (user directive in Riker sprint-close task) |
 
 ## Pending / Not Yet Granted
 
-- Pushing to remote / creating PRs — not granted; must ask each time
+- Pushing to remote / creating PRs — not granted for non-Riker agents; must ask each time
 - Modifying production code outside of test infrastructure — requires task assignment + Sr SE approval
